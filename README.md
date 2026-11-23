@@ -6,6 +6,12 @@
 
 **当前版本：0.5.0 预发布版。** 支持 macOS 13 及以上，提供 Apple Silicon / Intel 通用应用。应用采用临时签名，尚未经过 Developer ID 签名和 Apple 公证。
 
+## 界面预览
+
+<img src="docs/screenshots/settings-v0.5.0.png" alt="小米电视音量 v0.5.0 的真实设置界面局部，显示音频设备、同步等待和信号源切换设置" width="420">
+
+v0.5.0 在 macOS 上运行时的真实截图，仅裁剪设置区域；与 [XHFO.NET 官网](https://xhfo.net/#mitv-volume)使用同一素材。截图说明见[素材记录](docs/screenshots/README.md)。
+
 ## 功能
 
 - 自动发现局域网电视，无需填写 IP；手动选择声音实际输出的音频设备。
