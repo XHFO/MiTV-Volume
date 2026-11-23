@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+.swiftpm/
+dist/
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.dSYM/
+*.log
+adbkey*
+*.pem
+*.p12
+.env
+.env.*
