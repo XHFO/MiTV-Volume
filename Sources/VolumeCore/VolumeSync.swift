@@ -52,6 +52,7 @@ public struct VolumeError: LocalizedError {
     private var attempts = 0
     private var absolute = true
     private var busy = false
+    private var generation: UInt64 = 0
     private let now: () -> TimeInterval
     private var lastInputAt: TimeInterval = 0
     private var refreshBeforeSend = false
@@ -65,16 +66,31 @@ public struct VolumeError: LocalizedError {
                 now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.device = device; self.tv = tv; self.quietInterval = quietInterval; self.now = now
     }
-    public func invalidate() { primed = false; target = nil; connected = false }
+    /// Keep observing shortcuts during the quiet window, but do not add a delay
+    /// between acknowledged steps. Each step still waits for its HTTP response.
+    public var nextTickDelay: TimeInterval {
+        guard connected else { return 1 }
+        guard target != nil else { return 0.1 }
+        let delay = quietInterval.isFinite ? max(0, quietInterval) : 0
+        return min(0.05, max(0, delay - (now() - lastInputAt)))
+    }
+    public func invalidate() {
+        generation &+= 1
+        primed = false; target = nil; connected = false
+    }
 
     public func tick() async {
         guard !busy else { return }
         busy = true
+        let epoch = generation
+        func valid() -> Bool { epoch == generation && !Task.isCancelled }
         defer { busy = false }
         do {
+            guard valid() else { return }
             let snapshot = try device.read()
             if !primed {
                 let value = try await tv.read()
+                guard valid() else { return }
                 guard try device.confirm(value.scalar, revision: snapshot.revision) else { return }
                 actual = value; seen = snapshot.revision; primed = true
                 target = nil; absolute = true
@@ -96,26 +112,40 @@ public struct VolumeError: LocalizedError {
                 }
                 if refreshBeforeSend {
                     // A remote or an already-sent command may have changed the TV during the wait.
-                    actual = try await tv.read()
+                    let refreshed = try await tv.read()
+                    guard valid() else { return }
+                    actual = refreshed
                     guard try device.read().revision == revision else { return }
                     refreshBeforeSend = false
                 }
             }
             let previous = actual
+            var sent = false
             if let goal = target, let value = actual, goal != value.value {
                 // A read or previous request may have yielded while the user dragged again.
                 guard try device.read().revision == revision else { return }
                 if absolute {
-                    absolute = try await tv.setAbsolute(goal)
+                    let supported = try await tv.setAbsolute(goal)
+                    guard valid() else { return }
+                    absolute = supported
                     // Do not send a fallback key after yielding; recheck revision next tick.
                     if !absolute { return }
                 } else {
                     try await tv.step(up: goal > value.value)
                 }
-                attempts += 1
-                try await Task.sleep(nanoseconds: 80_000_000)
+                guard valid() else { return }
+                attempts += 1; sent = true
             }
-            let value = try await tv.read()
+            var value = try await tv.read()
+            guard valid() else { return }
+            if sent && value == previous {
+                // Most TVs already applied the key before replying. Only slower
+                // models need a settling read; never blindly send another key.
+                try await Task.sleep(nanoseconds: 80_000_000)
+                guard valid() else { return }
+                value = try await tv.read()
+                guard valid() else { return }
+            }
             actual = value
             guard try device.read().revision == revision else { return }
             if let goal = target {
@@ -142,6 +172,7 @@ public struct VolumeError: LocalizedError {
             connected = true
             status = target == nil ? "已同步 · \(value.value)/\(value.maximum)" : "正在同步 · \(value.value)/\(value.maximum)"
         } catch {
+            guard valid() else { return }
             // Never replay stale commands when a TV wakes or a network reconnects.
             primed = false; target = nil; connected = false
             status = "未同步 · \(error.localizedDescription)"

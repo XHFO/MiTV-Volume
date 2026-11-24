@@ -7,7 +7,7 @@ import VolumeCore
     static var isReady: Bool { (try? ProxyDevice().read()) != nil }
 
     static func ensureReady(progress: (String) -> Void) async throws {
-        if isReady { return }
+        if isReady && ProxyDevice.supportsDeviceIcons { return }
         guard let resources = Bundle.main.resourceURL else { throw VolumeError("应用文件不完整，请重新打开完整的应用。") }
         let script = resources.appendingPathComponent("enable-audio.sh")
         let driver = resources.appendingPathComponent("MiTVVolumeDriver.driver")
@@ -22,7 +22,7 @@ import VolumeCore
         progress("正在连接系统音量控制，请稍候…")
         for _ in 0..<80 {
             try Task.checkCancellation()
-            if isReady { return }
+            if isReady && ProxyDevice.supportsDeviceIcons { return }
             try await Task.sleep(nanoseconds: 250_000_000)
         }
         throw VolumeError("系统音频服务尚未就绪。请稍后点“重试启用”；仍未恢复时重启 Mac，再打开本应用即可继续。")

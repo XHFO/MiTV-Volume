@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB060000000000000000000B /* Device-mac.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA060000000000000000000B; };
+		AB060000000000000000000A /* Device-firewire.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA060000000000000000000A; };
+		AB0600000000000000000009 /* Device-thunderbolt.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000009; };
+		AB0600000000000000000008 /* Device-airplay.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000008; };
+		AB0600000000000000000007 /* Device-bluetooth.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000007; };
+		AB0600000000000000000006 /* Device-usb.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000006; };
+		AB0600000000000000000005 /* Device-homepodmini.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000005; };
+		AB0600000000000000000004 /* Device-appletv.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000004; };
+		AB0600000000000000000003 /* Device-homepod.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000003; };
+		AB0600000000000000000002 /* Device-headphones.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000002; };
+		AB0600000000000000000001 /* Device-speaker.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000001; };
+		AB0600000000000000000000 /* Device-display.icns in Resources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000000; };
 		2D46CA7B17D6ADCA00049D4A /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2D46CA7817D6AD8A00049D4A /* Localizable.strings */; };
 		2D46CA7D17D6AF4200049D4A /* DeviceIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 2D46CA7C17D6AF4200049D4A /* DeviceIcon.icns */; };
 		2D616EF415B8C82500D598BD /* ProxyAudioDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2D616EF215B8C82500D598BD /* ProxyAudioDevice.cpp */; };
@@ -44,6 +56,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AA060000000000000000000B /* Device-mac.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-mac.icns"; sourceTree = SOURCE_ROOT; };
+		AA060000000000000000000A /* Device-firewire.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-firewire.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000009 /* Device-thunderbolt.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-thunderbolt.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000008 /* Device-airplay.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-airplay.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000007 /* Device-bluetooth.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-bluetooth.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000006 /* Device-usb.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-usb.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000005 /* Device-homepodmini.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-homepodmini.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000004 /* Device-appletv.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-appletv.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000003 /* Device-homepod.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-homepod.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000002 /* Device-headphones.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-headphones.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000001 /* Device-speaker.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-speaker.icns"; sourceTree = SOURCE_ROOT; };
+		AA0600000000000000000000 /* Device-display.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "../Resources/DeviceIcons/Device-display.icns"; sourceTree = SOURCE_ROOT; };
 		2D46CA7917D6AD8A00049D4A /* English */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = English; path = English.lproj/Localizable.strings; sourceTree = "<group>"; };
 		2D46CA7C17D6AF4200049D4A /* DeviceIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = DeviceIcon.icns; sourceTree = "<group>"; };
 		2D616EF115B8C82500D598BD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -118,6 +142,18 @@
 			isa = PBXGroup;
 			children = (
 				2D46CA7C17D6AF4200049D4A /* DeviceIcon.icns */,
+				AA0600000000000000000005 /* Device-homepodmini.icns */,
+				AA0600000000000000000004 /* Device-appletv.icns */,
+				AA0600000000000000000003 /* Device-homepod.icns */,
+				AA0600000000000000000002 /* Device-headphones.icns */,
+				AA0600000000000000000001 /* Device-speaker.icns */,
+				AA0600000000000000000006 /* Device-usb.icns */,
+				AA0600000000000000000007 /* Device-bluetooth.icns */,
+				AA0600000000000000000008 /* Device-airplay.icns */,
+				AA0600000000000000000009 /* Device-thunderbolt.icns */,
+				AA060000000000000000000A /* Device-firewire.icns */,
+				AA060000000000000000000B /* Device-mac.icns */,
+				AA0600000000000000000000 /* Device-display.icns */,
 				2D46CA7817D6AD8A00049D4A /* Localizable.strings */,
 				2D616EF115B8C82500D598BD /* Info.plist */,
 				776BB92C2208DF8500A1120F /* AudioRingBuffer.cpp */,
@@ -303,6 +339,18 @@
 			files = (
 				2D46CA7B17D6ADCA00049D4A /* Localizable.strings in Resources */,
 				2D46CA7D17D6AF4200049D4A /* DeviceIcon.icns in Resources */,
+				AB0600000000000000000005 /* Device-homepodmini.icns in Resources */,
+				AB0600000000000000000004 /* Device-appletv.icns in Resources */,
+				AB0600000000000000000003 /* Device-homepod.icns in Resources */,
+				AB0600000000000000000002 /* Device-headphones.icns in Resources */,
+				AB0600000000000000000001 /* Device-speaker.icns in Resources */,
+				AB0600000000000000000006 /* Device-usb.icns in Resources */,
+				AB0600000000000000000007 /* Device-bluetooth.icns in Resources */,
+				AB0600000000000000000008 /* Device-airplay.icns in Resources */,
+				AB0600000000000000000009 /* Device-thunderbolt.icns in Resources */,
+				AB060000000000000000000A /* Device-firewire.icns in Resources */,
+				AB060000000000000000000B /* Device-mac.icns in Resources */,
+				AB0600000000000000000000 /* Device-display.icns in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

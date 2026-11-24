@@ -68,7 +68,8 @@ class ProxyAudioDevice {
         outputDeviceBufferFrameSize,
         deviceName,
         deviceActiveCondition,
-        deviceHideWhenUnavailable
+        deviceHideWhenUnavailable,
+        deviceIconStyle
     };
     enum class ActiveCondition { proxiedDeviceActive = 0, userActive = 1, always = 2 };
 
@@ -133,6 +134,8 @@ class ProxyAudioDevice {
     CFStringRef copyConfigurationValue(ConfigType action);
     CFStringRef copyDeviceNameFromStorage();
     void setDeviceName(CFStringRef newName);
+    void setDeviceIconStyle(CFStringRef value);
+    UInt32 deviceIconStyle = 0;
     CFStringRef copyDefaultProxyOutputDeviceUID();
     CFStringRef copyOutputDeviceUIDFromStorage();
     void setOutputDevice(CFStringRef deviceUID);

@@ -10,4 +10,4 @@ xcrun clang++ -std=c++11 -fblocks -Wno-deprecated-declarations -Wno-inconsistent
   "$root"/Driver/proxyAudioDevice/PublicUtility/*.cpp \
   -framework CoreAudio -framework CoreFoundation -framework CoreServices -framework IOKit -framework AppKit \
   -o "$build/driver-tests"
-"$build/driver-tests"
+"$build/driver-tests" "$@"

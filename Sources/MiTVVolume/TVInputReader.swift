@@ -3,8 +3,7 @@ import VolumeCore
 
 /// The ADB executable is bundled; no separate desktop or television app is installed.
 actor TVInputReader {
-    private var connectedHost: String?
-    private let port = "5047"
+    private let connection = TVInputConnection()
     private func run(_ arguments: [String], timeout: TimeInterval = 4) async throws -> String {
         guard let executable = Bundle.main.url(forResource: "adb", withExtension: nil) else {
             throw VolumeError("应用内缺少电视信号源组件")
@@ -34,17 +33,8 @@ actor TVInputReader {
         return result
     }
     func read(host: String) async throws -> (current: TVInputState, inputs: [TVInputState]) {
-        // Only numeric IPv4 addresses discovered by our TV scanner are accepted.
-        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 4, parts.allSatisfy({ UInt8($0) != nil }) else { throw VolumeError("电视地址无效") }
-        do {
-            if connectedHost != host {
-                let result = try await run(["-P", port, "connect", "\(host):5555"])
-                guard result.contains("connected to") else { throw VolumeError("请在电视开启网络调试，并允许此 Mac 连接") }
-                connectedHost = host
-            }
-            let dump = try await run(["-P", port, "-s", "\(host):5555", "shell", "dumpsys", "tv_input"])
-            return (try TVInputState.parse(dump), TVInputState.availableInputs(dump))
-        } catch { connectedHost = nil; throw error }
+        try await connection.read(host: host) { arguments in
+            try await self.run(arguments)
+        }
     }
 }

@@ -26,6 +26,10 @@ import ServiceManagement
         get { defaults.string(forKey: "FallbackOutputUID") }
         set { defaults.set(newValue, forKey: "FallbackOutputUID") }
     }
+    var deviceIconStyle: DeviceIconStyle {
+        get { DeviceIconStyle(rawValue: defaults.integer(forKey: "DeviceIconStyle")) ?? .display }
+        set { defaults.set(newValue.rawValue, forKey: "DeviceIconStyle") }
+    }
     var customDeviceName: String {
         get { defaults.string(forKey: "CustomDeviceName") ?? "" }
         set { defaults.set(newValue, forKey: "CustomDeviceName") }

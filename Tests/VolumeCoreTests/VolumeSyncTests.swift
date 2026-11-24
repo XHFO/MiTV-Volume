@@ -20,11 +20,15 @@ import XCTest
     var ignoreStep = false
     var sets: [Int] = []
     var steps: [Bool] = []
+    var onStep: (() -> Void)?
+    var staleReads = 0
+    var staleVolume = 20
     var onSet: (() -> Void)?
     var onRead: (() -> Void)?
     func read() async throws -> TVVolume {
         guard online else { throw VolumeError("离线") }
         onRead?(); onRead = nil
+        if staleReads > 0 { staleReads -= 1; return try TVVolume(value: staleVolume, maximum: maximum) }
         return try TVVolume(value: volume, maximum: maximum)
     }
     func setAbsolute(_ value: Int) async throws -> Bool {
@@ -35,7 +39,7 @@ import XCTest
     }
     func step(up: Bool) async throws {
         guard online else { throw VolumeError("离线") }
-        steps.append(up)
+        steps.append(up); onStep?(); onStep = nil
         if !ignoreStep { volume = max(0, min(maximum, volume + (up ? 1 : -1))) }
     }
 }
@@ -159,6 +163,47 @@ final class VolumeSyncTests: XCTestCase {
         await s.tick(); d.command(0.3); await s.tick(); clock = 0.4
         s.quietInterval = 1; await s.tick(); XCTAssertTrue(tv.sets.isEmpty)
         s.quietInterval = 0; await s.tick(); XCTAssertEqual(tv.sets, [30])
+    }
+    @MainActor func testAcknowledgedFallbackHasNoInterStepDelay() async {
+        let d = FakeDevice(), tv = FakeTV(); tv.supported = false
+        var clock: TimeInterval = 0
+        let s = VolumeSync(device: d, tv: tv, quietInterval: 1, now: { clock })
+        await s.tick(); d.command(0.23); await s.tick()
+        XCTAssertEqual(s.nextTickDelay, 0.05)
+        clock = 1; await s.tick()
+        XCTAssertEqual(s.nextTickDelay, 0)
+        await s.tick(); XCTAssertEqual(tv.volume, 21); XCTAssertEqual(s.nextTickDelay, 0)
+        await s.tick(); await s.tick()
+        XCTAssertEqual(tv.steps.count, 3); XCTAssertEqual(tv.volume, 23)
+        XCTAssertEqual(s.nextTickDelay, 0.1)
+    }
+    @MainActor func testDelayedFeedbackDoesNotSendDuplicateKey() async {
+        let d = FakeDevice(), tv = FakeTV(); tv.supported = false
+        let s = VolumeSync(device: d, tv: tv); await s.tick()
+        d.command(0.21); await s.tick()
+        tv.onStep = { tv.staleReads = 1 }
+        await s.tick()
+        XCTAssertEqual(tv.steps, [true]); XCTAssertEqual(tv.volume, 21)
+        XCTAssertFalse(s.hasPendingTarget); XCTAssertEqual(d.state.scalar, 0.21)
+    }
+    @MainActor func testInvalidationDuringMutationCannotRestoreOldTarget() async {
+        let d = FakeDevice(), tv = FakeTV()
+        let s = VolumeSync(device: d, tv: tv); await s.tick()
+        d.command(0.4); let confirmations = d.confirms
+        tv.onSet = { s.invalidate() }; await s.tick()
+        XCTAssertFalse(s.connected); XCTAssertFalse(s.hasPendingTarget)
+        XCTAssertEqual(d.confirms, confirmations)
+        tv.volume = 12; await s.tick()
+        XCTAssertEqual(d.state.scalar, 0.12); XCTAssertEqual(tv.sets, [40])
+    }
+    @MainActor func testReversalWhileStepInFlightUsesLatestTarget() async {
+        let d = FakeDevice(), tv = FakeTV(); tv.supported = false
+        let s = VolumeSync(device: d, tv: tv); await s.tick()
+        d.command(0.3); await s.tick()
+        tv.onStep = { d.command(0.19) }; await s.tick()
+        XCTAssertEqual(d.state.scalar, 0.19)
+        await s.tick(); await s.tick()
+        XCTAssertEqual(tv.steps, [true, false, false]); XCTAssertEqual(tv.volume, 19)
     }
     func testInvalidRangesAreRejected() {
         XCTAssertThrowsError(try TVVolume(value: 0, maximum: 0))

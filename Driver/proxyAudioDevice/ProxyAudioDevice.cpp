@@ -12,6 +12,40 @@
 #include "debugHelpers.h"
 #include "utilities.h"
 
+namespace {
+// Stable persisted values. Append entries; never change the first six IDs.
+struct DeviceIconDefinition { CFStringRef resource; UInt32 transport; UInt32 terminal; };
+const DeviceIconDefinition deviceIcons[] = {
+    {CFSTR("Device-display.icns"), kAudioDeviceTransportTypeDisplayPort, kAudioStreamTerminalTypeDisplayPort},
+    {CFSTR("Device-speaker.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-headphones.icns"), kAudioDeviceTransportTypeBuiltIn, kAudioStreamTerminalTypeHeadphones},
+    {CFSTR("Device-homepod.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-appletv.icns"), kAudioDeviceTransportTypeHDMI, kAudioStreamTerminalTypeHDMI},
+    {CFSTR("Device-homepodmini.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-usb.icns"), kAudioDeviceTransportTypeUSB, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-bluetooth.icns"), kAudioDeviceTransportTypeBluetooth, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-airplay.icns"), kAudioDeviceTransportTypeAirPlay, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-thunderbolt.icns"), kAudioDeviceTransportTypeThunderbolt, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-firewire.icns"), kAudioDeviceTransportTypeFireWire, kAudioStreamTerminalTypeSpeaker},
+    {CFSTR("Device-mac.icns"), kAudioDeviceTransportTypeBuiltIn, kAudioStreamTerminalTypeSpeaker}
+};
+const UInt32 deviceIconCount = sizeof(deviceIcons) / sizeof(deviceIcons[0]);
+bool parseDeviceIconStyle(CFStringRef value, UInt32 &result) {
+    if (!value || CFGetTypeID(value) != CFStringGetTypeID()) return false;
+    const CFIndex length = CFStringGetLength(value);
+    if (length < 1 || length > 2 || (length > 1 && CFStringGetCharacterAtIndex(value, 0) == '0')) return false;
+    UInt32 parsed = 0;
+    for (CFIndex i = 0; i < length; ++i) {
+        const UniChar c = CFStringGetCharacterAtIndex(value, i);
+        if (c < '0' || c > '9') return false;
+        parsed = parsed * 10 + UInt32(c - '0');
+    }
+    if (parsed >= deviceIconCount) return false;
+    result = parsed;
+    return true;
+}
+} // namespace
+
 #pragma mark Utility Functions
 
 template<typename T>
@@ -568,6 +602,12 @@ OSStatus ProxyAudioDevice::Initialize(AudioServerPlugInDriverRef inDriver, Audio
     dispatch_resume(inputMonitoringTimer);
     
     deviceName = copyDeviceNameFromStorage();
+    CFPropertyListSmartRef iconSetting;
+    gPlugIn_Host->CopyFromStorage(gPlugIn_Host, CFSTR("deviceIconStyle"), &iconSetting);
+    UInt32 storedStyle = 0;
+    if (iconSetting != NULL && parseDeviceIconStyle(CFStringRef(CFPropertyListRef(iconSetting)), storedStyle)) {
+        deviceIconStyle = storedStyle;
+    }
     outputDeviceUID = copyOutputDeviceUIDFromStorage();
     outputDeviceBufferFrameSize = retrieveOutputDeviceBufferFrameSizeFromStorage();
     outputDeviceActiveCondition = retrieveOutputDeviceActiveConditionFromStorage();
@@ -2022,7 +2062,7 @@ OSStatus ProxyAudioDevice::GetBoxPropertyData(AudioServerPlugInDriverRef inDrive
                            Done,
                            "GetBoxPropertyData: not enough space for the return value of "
                            "kAudioObjectPropertyFirmwareVersion for the box");
-            *((CFStringRef *)outData) = CFSTR("1.0");
+            *((CFStringRef *)outData) = CFSTR("0.3.5");
             *outDataSize = sizeof(CFStringRef);
             break;
 
@@ -2350,6 +2390,10 @@ Boolean ProxyAudioDevice::HasDeviceProperty(AudioServerPlugInDriverRef inDriver,
     //    extras that are useful but not required. There is more detailed commentary about each
     //    property in the GetDevicePropertyData() method.
     switch (inAddress->mSelector) {
+        case kAudioDevicePropertyDataSource:
+            theAnswer = inAddress->mScope == kAudioObjectPropertyScopeOutput;
+            break;
+
         case kMiTVVolumeState:
         case kAudioObjectPropertyCustomPropertyInfoList:
             theAnswer = true;
@@ -2443,6 +2487,7 @@ OSStatus ProxyAudioDevice::IsDevicePropertySettable(AudioServerPlugInDriverRef i
         case kAudioObjectPropertyOwnedObjects:
         case kAudioDevicePropertyDeviceUID:
         case kAudioDevicePropertyModelUID:
+        case kAudioDevicePropertyDataSource:
         case kAudioDevicePropertyTransportType:
         case kAudioDevicePropertyRelatedDevices:
         case kAudioDevicePropertyClockDomain:
@@ -2563,6 +2608,7 @@ OSStatus ProxyAudioDevice::GetDevicePropertyDataSize(AudioServerPlugInDriverRef 
             *outDataSize = sizeof(CFStringRef);
             break;
 
+        case kAudioDevicePropertyDataSource:
         case kAudioDevicePropertyTransportType:
             *outDataSize = sizeof(UInt32);
             break;
@@ -2840,6 +2886,20 @@ OSStatus ProxyAudioDevice::GetDevicePropertyData(AudioServerPlugInDriverRef inDr
             *outDataSize = sizeof(CFStringRef);
             break;
 
+        case kAudioDevicePropertyDataSource:
+            // The output category is read-only; it describes the selected virtual
+            // presentation and never changes the real device's routing or volume.
+            FailWithAction(inAddress->mScope != kAudioObjectPropertyScopeOutput,
+                           theAnswer = kAudioHardwareUnknownPropertyError, Done, "No input data source");
+            FailWithAction(inDataSize < sizeof(UInt32),
+                           theAnswer = kAudioHardwareBadPropertySizeError, Done, "Data source size");
+            {
+                CAMutex::Locker locker(stateMutex);
+                *((UInt32 *)outData) = deviceIconStyle == 2 ? 'hdpn' : 'ispk';
+            }
+            *outDataSize = sizeof(UInt32);
+            break;
+
         case kAudioDevicePropertyTransportType:
             //    This value represents how the device is attached to the system. This can be
             //    any 32 bit integer, but common values for this property are defined in
@@ -2849,7 +2909,10 @@ OSStatus ProxyAudioDevice::GetDevicePropertyData(AudioServerPlugInDriverRef inDr
                            Done,
                            "GetDevicePropertyData: not enough space for the return value of "
                            "kAudioDevicePropertyTransportType for the device");
-            *((UInt32 *)outData) = kAudioDeviceTransportTypeVirtual;
+            {
+                CAMutex::Locker locker(stateMutex);
+                *((UInt32 *)outData) = deviceIcons[deviceIconStyle].transport;
+            }
             *outDataSize = sizeof(UInt32);
             break;
 
@@ -3154,7 +3217,11 @@ OSStatus ProxyAudioDevice::GetDevicePropertyData(AudioServerPlugInDriverRef inDr
                            theAnswer = kAudioHardwareUnspecifiedError,
                            Done,
                            "GetDevicePropertyData: could not get the plug-in bundle for kAudioDevicePropertyIcon");
-            CFURLRef theURL = CFBundleCopyResourceURL(theBundle, CFSTR("DeviceIcon.icns"), NULL, NULL);
+            CFURLRef theURL;
+            {
+                CAMutex::Locker locker(stateMutex);
+                theURL = CFBundleCopyResourceURL(theBundle, deviceIcons[deviceIconStyle].resource, NULL, NULL);
+            }
             FailWithAction(theURL == NULL,
                            theAnswer = kAudioHardwareUnspecifiedError,
                            Done,
@@ -3603,7 +3670,11 @@ OSStatus ProxyAudioDevice::GetStreamPropertyData(AudioServerPlugInDriverRef inDr
                            Done,
                            "GetStreamPropertyData: not enough space for the return value of "
                            "kAudioStreamPropertyTerminalType for the stream");
-            *((UInt32 *)outData) = kAudioStreamTerminalTypeSpeaker;
+            {
+                CAMutex::Locker locker(stateMutex);
+                // Keep the stream category consistent with the virtual presentation.
+                *((UInt32 *)outData) = deviceIcons[deviceIconStyle].terminal;
+            }
             *outDataSize = sizeof(UInt32);
             break;
 
@@ -3897,6 +3968,9 @@ Boolean ProxyAudioDevice::HasControlProperty(AudioServerPlugInDriverRef inDriver
 
         case kObjectID_DataSource_Output_Master:
             switch (inAddress->mSelector) {
+                case kAudioSelectorControlPropertyCurrentItem:
+                case kAudioSelectorControlPropertyAvailableItems:
+                case kAudioSelectorControlPropertyItemName:
                 case kAudioObjectPropertyBaseClass:
                 case kAudioObjectPropertyClass:
                 case kAudioObjectPropertyOwner:
@@ -3993,6 +4067,9 @@ OSStatus ProxyAudioDevice::IsControlPropertySettable(AudioServerPlugInDriverRef 
 
         case kObjectID_DataSource_Output_Master:
             switch (inAddress->mSelector) {
+                case kAudioSelectorControlPropertyCurrentItem:
+                case kAudioSelectorControlPropertyAvailableItems:
+                case kAudioSelectorControlPropertyItemName:
                 case kAudioObjectPropertyBaseClass:
                 case kAudioObjectPropertyClass:
                 case kAudioObjectPropertyOwner:
@@ -4140,6 +4217,13 @@ OSStatus ProxyAudioDevice::GetControlPropertyDataSize(AudioServerPlugInDriverRef
 
         case kObjectID_DataSource_Output_Master:
             switch (inAddress->mSelector) {
+                case kAudioSelectorControlPropertyCurrentItem:
+                case kAudioSelectorControlPropertyAvailableItems:
+                    *outDataSize = sizeof(UInt32);
+                    break;
+                case kAudioSelectorControlPropertyItemName:
+                    *outDataSize = sizeof(CFStringRef);
+                    break;
                 case kAudioObjectPropertyBaseClass:
                     *outDataSize = sizeof(AudioClassID);
                     break;
@@ -4480,6 +4564,33 @@ OSStatus ProxyAudioDevice::GetControlPropertyData(AudioServerPlugInDriverRef inD
 
         case kObjectID_DataSource_Output_Master:
             switch (inAddress->mSelector) {
+                case kAudioSelectorControlPropertyCurrentItem:
+                case kAudioSelectorControlPropertyAvailableItems:
+                    FailWithAction(inDataSize < sizeof(UInt32),
+                                   theAnswer = kAudioHardwareBadPropertySizeError, Done, "Source item size");
+                    {
+                        CAMutex::Locker locker(stateMutex);
+                        *((UInt32 *)outData) = deviceIconStyle == 2 ? 'hdpn' : 'ispk';
+                    }
+                    *outDataSize = sizeof(UInt32);
+                    break;
+                case kAudioSelectorControlPropertyItemName:
+                    FailWithAction(inQualifierDataSize != sizeof(UInt32) || !inQualifierData,
+                                   theAnswer = kAudioHardwareBadPropertySizeError, Done, "Source item qualifier");
+                    FailWithAction(inDataSize < sizeof(CFStringRef),
+                                   theAnswer = kAudioHardwareBadPropertySizeError, Done, "Source name size");
+                    {
+                        CAMutex::Locker locker(stateMutex);
+                        const UInt32 current = deviceIconStyle == 2 ? 'hdpn' : 'ispk';
+                        FailWithAction(*((const UInt32 *)inQualifierData) != current,
+                                       theAnswer = kAudioHardwareIllegalOperationError, Done, "Unknown source item");
+                        // Control Center may use the selected source label as the
+                        // displayed device name. The item ID carries the category;
+                        // its label must preserve the user's independent name.
+                        *((CFStringRef *)outData) = CFStringCreateCopy(NULL, deviceName);
+                    }
+                    *outDataSize = sizeof(CFStringRef);
+                    break;
                 case kAudioObjectPropertyBaseClass:
                     //    The base class for kAudioDataSourceControlClassID is kAudioSelectorControlClassID
                     FailWithAction(inDataSize < sizeof(AudioClassID),
@@ -5770,6 +5881,8 @@ void ProxyAudioDevice::parseConfigurationString(CFStringRef configString, Config
         action = ConfigType::outputDeviceBufferFrameSize;
     } else if (CFStringCompare(actionString, CFSTR("deviceName"), 0) == kCFCompareEqualTo) {
         action = ConfigType::deviceName;
+    } else if (CFStringCompare(actionString, CFSTR("deviceIconStyle"), 0) == kCFCompareEqualTo) {
+        action = ConfigType::deviceIconStyle;
     } else if (CFStringCompare(actionString, CFSTR("outputDeviceActiveCondition"), 0) == kCFCompareEqualTo) {
         action = ConfigType::deviceActiveCondition;
     } else if (CFStringCompare(actionString, CFSTR("outputDeviceHideWhenUnavailable"), 0) == kCFCompareEqualTo) {
@@ -5805,6 +5918,10 @@ void ProxyAudioDevice::setConfigurationValue(ConfigType type, CFStringRef value)
             setDeviceName(value);
             break;
 
+        case ConfigType::deviceIconStyle:
+            setDeviceIconStyle(value);
+            break;
+
         case ConfigType::deviceActiveCondition:
             setOutputDeviceActiveCondition((ActiveCondition)CFStringGetIntValue(value));
             break;
@@ -5831,6 +5948,9 @@ CFStringRef ProxyAudioDevice::copyConfigurationValue(ConfigType type) {
                 
         case ConfigType::deviceName:
             return CFStringCreateCopy(NULL, deviceName);
+
+        case ConfigType::deviceIconStyle:
+            return CFStringCreateWithFormat(NULL, NULL, CFSTR("%u"), deviceIconStyle);
 
         case ConfigType::deviceActiveCondition:
             return CFStringCreateWithFormat(NULL, NULL, CFSTR("%u"), outputDeviceActiveCondition);
@@ -5876,6 +5996,41 @@ CFStringRef ProxyAudioDevice::copyDeviceNameFromStorage()
     return result;
 }
 
+void ProxyAudioDevice::setDeviceIconStyle(CFStringRef value) {
+    // Only fixed bundled resources may be exposed to Core Audio.
+    UInt32 style = 0;
+    if (!gPlugIn_Host || !parseDeviceIconStyle(value, style)) return;
+    {
+        CAMutex::Locker locker(stateMutex);
+        if (deviceIconStyle == style) return;
+        deviceIconStyle = style;
+    }
+    ExecuteInAudioOutputThread(^() {
+        CAMutex::Locker locker(stateMutex);
+        CFStringSmartRef setting = CFStringCreateWithFormat(NULL, NULL, CFSTR("%u"), deviceIconStyle);
+        gPlugIn_Host->WriteToStorage(gPlugIn_Host, CFSTR("deviceIconStyle"), setting);
+        AudioObjectPropertyAddress address = {
+            kAudioDevicePropertyIcon, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster};
+        gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_Device, 1, &address);
+        address.mSelector = kAudioDevicePropertyTransportType;
+        gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_Device, 1, &address);
+        // Control Center reads output-scope transport and observes data-source
+        // changes to rebuild its category. A global icon URL notification alone
+        // doesn't describe the headphone/display/TV category change.
+        address.mScope = kAudioObjectPropertyScopeOutput;
+        gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_Device, 1, &address);
+        address.mSelector = kAudioDevicePropertyDataSource;
+        gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_Device, 1, &address);
+        address.mScope = kAudioObjectPropertyScopeGlobal;
+        address.mSelector = kAudioStreamPropertyTerminalType;
+        gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_Stream_Output, 1, &address);
+        AudioObjectPropertyAddress sourceChanges[] = {
+            {kAudioSelectorControlPropertyCurrentItem, kAudioObjectPropertyScopeGlobal, 0},
+            {kAudioSelectorControlPropertyAvailableItems, kAudioObjectPropertyScopeGlobal, 0}};
+        gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_DataSource_Output_Master, 2, sourceChanges);
+    });
+}
+
 void ProxyAudioDevice::setDeviceName(CFStringRef newName) {
     if (!newName || !gPlugIn_Host) {
         return;
@@ -5899,6 +6054,8 @@ void ProxyAudioDevice::setDeviceName(CFStringRef newName) {
         AudioObjectPropertyAddress theAddress = {
             kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster};
         gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_Device, 1, &theAddress);
+        theAddress.mSelector = kAudioSelectorControlPropertyItemName;
+        gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_DataSource_Output_Master, 1, &theAddress);
     });
 }
 

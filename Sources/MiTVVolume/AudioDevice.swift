@@ -88,6 +88,19 @@ import VolumeCore
         try boxCommand("outputDevice=\(outputUID)", box: box)
         try boxCommand("outputDeviceHideWhenUnavailable=1", box: box)
     }
+    static var supportsDeviceIcons: Bool {
+        guard let box = try? lookup("MiTVVolumeBox_UID", box: true),
+              let version = try? string(box, kAudioObjectPropertyFirmwareVersion) else { return false }
+        return version == "0.3.5"
+    }
+    static func setIcon(_ style: DeviceIconStyle) throws {
+        guard supportsDeviceIcons else { throw VolumeError("图标选择已保存。点击“启用音量控制”更新内置音频组件后生效。") }
+        let box = try lookup("MiTVVolumeBox_UID", box: true)
+        var identify = address(kAudioObjectPropertyIdentify)
+        var pid = getpid()
+        try check(AudioObjectSetPropertyData(box, &identify, 0, nil, 4, &pid))
+        try boxCommand("deviceIconStyle=\(style.rawValue)", box: box)
+    }
     static func setName(_ name: String) throws {
         let box = try lookup("MiTVVolumeBox_UID", box: true)
         var identify = address(kAudioObjectPropertyIdentify)
