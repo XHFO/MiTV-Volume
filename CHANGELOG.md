@@ -2,13 +2,15 @@
 
 ## 0.6.0（源码已同步，安装包尚未公开发布）
 
-当前源码对应应用 build 15，内置音频组件 0.3.5 build 9。
+当前源码对应应用 build 16，内置音频组件 0.3.5 build 9。
+
+Build 16: limit the device-icon menu to display, speaker, headphones, TV and host Mac. Bluetooth, AirPlay and other fallback appearances are no longer offered as new choices; previously saved IDs remain readable until the user picks another style.
 
 - 改为仅菜单栏操作，保留电视发现、输出选择、自定义名称、同步等待、信号源自动切换、登录自启和隐藏入口。
 - 优化连续调节与直接设置百分比的响应：已确认生效的音量档位之间不再固定等待，延迟反馈时才补充回读。保留停止调整等待、最新目标优先及失效后丢弃旧请求的逻辑。
 - 修复更新应用后遗留 ADB 服务导致信号源验证失败、音量控制暂停的问题。只在首次连接时重置应用独立的服务，并在恢复后重新采用电视实际音量。
 - 加入由 Apple Icon Composer 制作的紫色声波应用图标，同时保留可编辑设计源文件。
-- 提供七种控制中心实测有效的设备外观：显示器、普通扬声器、耳机、电视、蓝牙、AirPlay、本机 Mac。保留旧保存值，不自动重置用户选择。
+- 设备图标菜单仅保留五种：显示器、扬声器、耳机、电视、本机 Mac。移除蓝牙、AirPlay 及其他回退项的新入口；旧保存值仍可读，不自动重置用户选择。
 - 修复切换图标后控制中心显示为 Speaker / Headphones 的问题：设备名称和数据源标签均使用用户设定的名称，改名时通知观察者。
 - 通过应用内原有授权流程更新内置音频组件，无需独立安装器。
 

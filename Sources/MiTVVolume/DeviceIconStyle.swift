@@ -4,9 +4,9 @@ import AppKit
 enum DeviceIconStyle: Int, CaseIterable {
     case display, speaker, headphones, homepod, appleTV, homepodMini
     case usb, bluetooth, airplay, thunderbolt, firewire, builtInMac
-    /// Distinct icons visually verified in Control Center. Other persisted IDs
-    /// remain readable for compatibility, but aren't offered as new choices.
-    static let selectable: [Self] = [.display, .speaker, .headphones, .appleTV, .bluetooth, .airplay, .builtInMac]
+    /// Menu choices limited to the five requested Control Center appearances.
+    /// Other persisted IDs remain readable for compatibility.
+    static let selectable: [Self] = [.display, .speaker, .headphones, .appleTV, .builtInMac]
     static func menuChoices(retaining current: Self) -> [Self] {
         selectable.contains(current) ? selectable : selectable + [current]
     }
@@ -16,14 +16,14 @@ enum DeviceIconStyle: Int, CaseIterable {
     }
     var menuTitle: String {
         switch self {
-        case .homepod, .homepodMini, .usb, .thunderbolt, .firewire:
+        case .homepod, .homepodMini, .usb, .thunderbolt, .firewire, .bluetooth, .airplay:
             return "\(title)（控制中心显示扬声器）"
         default: return title
         }
     }
     var systemHint: String {
         switch self {
-        case .homepod, .homepodMini, .usb, .thunderbolt, .firewire:
+        case .homepod, .homepodMini, .usb, .thunderbolt, .firewire, .bluetooth, .airplay:
             return "资源图标已保存；控制中心使用扬声器图标"
         case .appleTV: return "已切换为电视分类；控制中心采用系统电视图标"
         case .builtInMac: return "已切换为本机 Mac 分类；图标由当前 Mac 机型决定"
