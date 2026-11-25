@@ -4,7 +4,7 @@
 
 [下载安装包](https://github.com/XHFO/MiTV-Volume/releases) · [验证范围](docs/VALIDATION.md) · [第三方声明](THIRD_PARTY_NOTICES.md)
 
-**当前源码：0.6.0（build 17，尚未发布安装包；公开安装包仍为 0.5.0）。** 支持 macOS 13 及以上，提供 Apple Silicon / Intel 通用应用。应用采用临时签名，尚未经过 Developer ID 签名和 Apple 公证。
+**当前版本：0.6.0 build 17（预发布）。** 支持 macOS 13 及以上，提供 Apple Silicon / Intel 通用应用。应用采用临时签名，尚未经过 Developer ID 签名和 Apple 公证。
 
 ## 界面预览（旧版）
 
