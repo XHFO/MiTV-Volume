@@ -26,6 +26,9 @@ import VolumeCore
     private var sourceState: TVInputState?
     private var sourceInputs: [TVInputState] = []
     private var sourceMessage = "信号源由电视端 XH 光流提供…"
+    private let windowRelocator = WindowRelocator()
+    private var lastComputerInputActive: Bool?
+    private var windowMoveMessage = ""
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -129,6 +132,20 @@ import VolumeCore
             add("未连接的备用设备（保留选择）", to: fallback, checked: true)
         }
         add("切回电脑输入后自动恢复", to: source)
+        source.addItem(.separator())
+        let canWindow = paired && preferences.computerInputID != nil
+        let windowTitle = WindowRelocator.isTrusted
+            ? "主机抢占电视输入时移到内置屏"
+            : "主机抢占电视输入时移到内置屏（需辅助功能）"
+        add(windowTitle, to: source, action: #selector(toggleWindowMove),
+            checked: preferences.windowMoveOnSeize, enabled: canWindow)
+        add("切离电脑输入后恢复窗口位置", to: source, action: #selector(toggleWindowRestore),
+            checked: preferences.windowRestoreOnLeave,
+            enabled: canWindow && preferences.windowMoveOnSeize)
+        if preferences.windowMoveOnSeize && !WindowRelocator.isTrusted {
+            add("在系统设置中允许辅助功能…", to: source, action: #selector(openAccessibilitySettings))
+        }
+        if !windowMoveMessage.isEmpty { add(windowMoveMessage, to: source) }
         let device = submenu("音频设备外观", in: menu)
         add("自定义设备名称…", to: device, action: #selector(renameDevice))
         add("恢复原设备名 +（音量控制）", to: device, action: #selector(resetDeviceName), checked: preferences.customDeviceName.isEmpty)
@@ -195,6 +212,47 @@ import VolumeCore
         sourceMessage = "已清除配对，请重新配对电视端 XH 光流"
         menuMessage = sourceMessage
         startSourceMonitor()
+    }
+
+    @objc private func toggleWindowMove() {
+        if !preferences.windowMoveOnSeize && !WindowRelocator.isTrusted {
+            _ = WindowRelocator.requestTrust()
+        }
+        preferences.windowMoveOnSeize.toggle()
+        if !preferences.windowMoveOnSeize {
+            lastComputerInputActive = nil
+            windowRelocator.clearSnapshots()
+            windowMoveMessage = ""
+        } else if !WindowRelocator.isTrusted {
+            windowMoveMessage = "请在系统设置 → 隐私与安全性 → 辅助功能中允许“小米电视音量”"
+        } else {
+            windowMoveMessage = "已开启：电视切到电脑输入并稳定后，外接屏普通窗口会移到内置屏"
+            applyWindowPolicy(for: sourceState, force: true)
+        }
+        menuMessage = windowMoveMessage
+    }
+    @objc private func toggleWindowRestore() { preferences.windowRestoreOnLeave.toggle() }
+    @objc private func openAccessibilitySettings() { WindowRelocator.openAccessibilitySettings() }
+
+    private func applyWindowPolicy(for state: TVInputState?, force: Bool = false) {
+        guard preferences.windowMoveOnSeize,
+              let computer = preferences.computerInputID,
+              let state else { return }
+        let active = state.identifier == computer
+        if !force, lastComputerInputActive == active { return }
+        lastComputerInputActive = active
+        if active {
+            guard WindowRelocator.isTrusted else {
+                windowMoveMessage = "主机已在电脑输入，但缺少辅助功能权限"
+                return
+            }
+            windowRelocator.moveExternalWindowsToBuiltin()
+            windowMoveMessage = windowRelocator.lastMessage
+        } else if preferences.windowRestoreOnLeave {
+            guard WindowRelocator.isTrusted else { return }
+            windowRelocator.restoreMovedWindows()
+            windowMoveMessage = windowRelocator.lastMessage
+        }
     }
     @objc private func selectFallback(_ sender: NSMenuItem) { preferences.fallbackOutputUID = sender.representedObject as? String }
     @objc private func selectIcon(_ sender: NSMenuItem) {
@@ -338,6 +396,9 @@ import VolumeCore
                     stable.observe(reading.current); self.sourceState = stable.value; self.sourceObservedAt = Date()
                     self.sourceInputs = reading.inputs
                     self.sourceMessage = stable.value.map { "电视当前：\($0.label) · 经 XH 光流" } ?? "电视正在切换信号源…"
+                    if let confirmed = stable.value {
+                        self.applyWindowPolicy(for: confirmed)
+                    }
                 } catch {
                     guard !Task.isCancelled else { break }
                     stable.observe(nil); self.sourceState = nil

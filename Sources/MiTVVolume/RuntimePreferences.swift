@@ -58,6 +58,20 @@ import VolumeCore
         get { defaults.string(forKey: "CustomDeviceName") ?? "" }
         set { defaults.set(newValue, forKey: "CustomDeviceName") }
     }
+
+    /// When this Mac seizes the TV computer input, move external-display windows to the built-in screen.
+    var windowMoveOnSeize: Bool {
+        get { defaults.bool(forKey: "WindowMoveOnSeize") }
+        set { defaults.set(newValue, forKey: "WindowMoveOnSeize") }
+    }
+    /// After a seize-move, restore saved frames when the TV leaves the computer input.
+    var windowRestoreOnLeave: Bool {
+        get {
+            if defaults.object(forKey: "WindowRestoreOnLeave") == nil { return true }
+            return defaults.bool(forKey: "WindowRestoreOnLeave")
+        }
+        set { defaults.set(newValue, forKey: "WindowRestoreOnLeave") }
+    }
     var volumeQuietInterval: TimeInterval {
         get { defaults.double(forKey: "VolumeQuietInterval") }
         set { defaults.set(newValue, forKey: "VolumeQuietInterval") }
