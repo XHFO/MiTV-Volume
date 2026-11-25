@@ -91,7 +91,7 @@ import VolumeCore
     static var supportsDeviceIcons: Bool {
         guard let box = try? lookup("MiTVVolumeBox_UID", box: true),
               let version = try? string(box, kAudioObjectPropertyFirmwareVersion) else { return false }
-        return version == "0.3.5"
+        return version == "0.3.6"
     }
     static func setIcon(_ style: DeviceIconStyle) throws {
         guard supportsDeviceIcons else { throw VolumeError("图标选择已保存。点击“启用音量控制”更新内置音频组件后生效。") }

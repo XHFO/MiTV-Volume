@@ -2,7 +2,9 @@
 
 ## 0.6.0（源码已同步，安装包尚未公开发布）
 
-当前源码对应应用 build 16，内置音频组件 0.3.5 build 9。
+当前源码对应应用 build 17，内置音频组件 0.3.6 build 10。
+
+Build 17: stop presenting headphones/Mac styles as BuiltIn audio (0.5.0 always used Virtual). Coalesce stereo volume into one TV command revision and restore the 100ms connected poll floor so left-Control/host key glitches cannot become a rapid volumedown stream. Control Center may fall back to a generic speaker for headphones.
 
 Build 16: limit the device-icon menu to display, speaker, headphones, TV and host Mac. Bluetooth, AirPlay and other fallback appearances are no longer offered as new choices; previously saved IDs remain readable until the user picks another style.
 

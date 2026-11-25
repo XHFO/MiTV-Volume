@@ -138,11 +138,11 @@ int main(int argc, const char *argv[]) {
         assert(device.GetPropertyData(gAudioServerPlugInDriverRef, kObjectID_Device, 0,
             &transport, 0, nullptr, sizeof(kind), &kindSize, &kind) == noErr);
         const UInt32 transports[] = {kAudioDeviceTransportTypeDisplayPort, kAudioDeviceTransportTypeVirtual,
-            kAudioDeviceTransportTypeBuiltIn, kAudioDeviceTransportTypeVirtual,
+            kAudioDeviceTransportTypeVirtual, kAudioDeviceTransportTypeVirtual,
             kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeVirtual,
             kAudioDeviceTransportTypeUSB, kAudioDeviceTransportTypeBluetooth,
             kAudioDeviceTransportTypeAirPlay, kAudioDeviceTransportTypeThunderbolt,
-            kAudioDeviceTransportTypeFireWire, kAudioDeviceTransportTypeBuiltIn};
+            kAudioDeviceTransportTypeFireWire, kAudioDeviceTransportTypeVirtual};
         assert(kind == transports[i]);
         transport.mScope = kAudioObjectPropertyScopeOutput;
         assert(device.GetPropertyData(gAudioServerPlugInDriverRef, kObjectID_Device, 0,

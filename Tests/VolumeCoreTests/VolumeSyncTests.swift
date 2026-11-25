@@ -169,10 +169,10 @@ final class VolumeSyncTests: XCTestCase {
         var clock: TimeInterval = 0
         let s = VolumeSync(device: d, tv: tv, quietInterval: 1, now: { clock })
         await s.tick(); d.command(0.23); await s.tick()
-        XCTAssertEqual(s.nextTickDelay, 0.05)
+        XCTAssertEqual(s.nextTickDelay, 0.1)
         clock = 1; await s.tick()
-        XCTAssertEqual(s.nextTickDelay, 0)
-        await s.tick(); XCTAssertEqual(tv.volume, 21); XCTAssertEqual(s.nextTickDelay, 0)
+        XCTAssertEqual(s.nextTickDelay, 0.1)
+        await s.tick(); XCTAssertEqual(tv.volume, 21); XCTAssertEqual(s.nextTickDelay, 0.1)
         await s.tick(); await s.tick()
         XCTAssertEqual(tv.steps.count, 3); XCTAssertEqual(tv.volume, 23)
         XCTAssertEqual(s.nextTickDelay, 0.1)

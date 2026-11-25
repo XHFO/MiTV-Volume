@@ -69,10 +69,10 @@ public struct VolumeError: LocalizedError {
     /// Keep observing shortcuts during the quiet window, but do not add a delay
     /// between acknowledged steps. Each step still waits for its HTTP response.
     public var nextTickDelay: TimeInterval {
+        // 0.5.0 used a fixed 100ms connected poll. Keep that floor so host
+        // volume glitches cannot be turned into a tight volumedown loop.
         guard connected else { return 1 }
-        guard target != nil else { return 0.1 }
-        let delay = quietInterval.isFinite ? max(0, quietInterval) : 0
-        return min(0.05, max(0, delay - (now() - lastInputAt)))
+        return 0.1
     }
     public func invalidate() {
         generation &+= 1

@@ -16,9 +16,11 @@ namespace {
 // Stable persisted values. Append entries; never change the first six IDs.
 struct DeviceIconDefinition { CFStringRef resource; UInt32 transport; UInt32 terminal; };
 const DeviceIconDefinition deviceIcons[] = {
+    // Keep first six IDs stable. Avoid BuiltIn transport: macOS can attach host
+    // keyboard/media handling to built-in-looking outputs (regressed vs 0.5.0).
     {CFSTR("Device-display.icns"), kAudioDeviceTransportTypeDisplayPort, kAudioStreamTerminalTypeDisplayPort},
     {CFSTR("Device-speaker.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeSpeaker},
-    {CFSTR("Device-headphones.icns"), kAudioDeviceTransportTypeBuiltIn, kAudioStreamTerminalTypeHeadphones},
+    {CFSTR("Device-headphones.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeHeadphones},
     {CFSTR("Device-homepod.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeSpeaker},
     {CFSTR("Device-appletv.icns"), kAudioDeviceTransportTypeHDMI, kAudioStreamTerminalTypeHDMI},
     {CFSTR("Device-homepodmini.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeSpeaker},
@@ -27,7 +29,7 @@ const DeviceIconDefinition deviceIcons[] = {
     {CFSTR("Device-airplay.icns"), kAudioDeviceTransportTypeAirPlay, kAudioStreamTerminalTypeSpeaker},
     {CFSTR("Device-thunderbolt.icns"), kAudioDeviceTransportTypeThunderbolt, kAudioStreamTerminalTypeSpeaker},
     {CFSTR("Device-firewire.icns"), kAudioDeviceTransportTypeFireWire, kAudioStreamTerminalTypeSpeaker},
-    {CFSTR("Device-mac.icns"), kAudioDeviceTransportTypeBuiltIn, kAudioStreamTerminalTypeSpeaker}
+    {CFSTR("Device-mac.icns"), kAudioDeviceTransportTypeVirtual, kAudioStreamTerminalTypeSpeaker}
 };
 const UInt32 deviceIconCount = sizeof(deviceIcons) / sizeof(deviceIcons[0]);
 bool parseDeviceIconStyle(CFStringRef value, UInt32 &result) {
@@ -2062,7 +2064,7 @@ OSStatus ProxyAudioDevice::GetBoxPropertyData(AudioServerPlugInDriverRef inDrive
                            Done,
                            "GetBoxPropertyData: not enough space for the return value of "
                            "kAudioObjectPropertyFirmwareVersion for the box");
-            *((CFStringRef *)outData) = CFSTR("0.3.5");
+            *((CFStringRef *)outData) = CFSTR("0.3.6");
             *outDataSize = sizeof(CFStringRef);
             break;
 
@@ -4724,33 +4726,21 @@ OSStatus ProxyAudioDevice::SetControlPropertyData(AudioServerPlugInDriverRef inD
                         theNewVolume = 1.0;
                     }
                     {
+                        // Mirror L/R and bump the TV command revision once. Separate
+                        // per-channel revisions made one host volume action look like
+                        // multiple volumedown/up commands (worse than 0.5.0).
                         CAMutex::Locker locker(stateMutex);
-                        if (inObjectID == kObjectID_Volume_Output_L) {
-                            if (gVolume_Output_L_Value != theNewVolume) {
-                                gVolume_Output_L_Value = theNewVolume;
-                                tvRequestedScalar = theNewVolume;
-                                ++tvRevision;
-                                *outNumberPropertiesChanged = 2;
-                                outChangedAddresses[0].mSelector = kAudioLevelControlPropertyScalarValue;
-                                outChangedAddresses[0].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[0].mElement = 1;
-                                outChangedAddresses[1].mSelector = kAudioLevelControlPropertyDecibelValue;
-                                outChangedAddresses[1].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[1].mElement = 1;
-                            }
-                        } else {
-                            if (gVolume_Output_R_Value != theNewVolume) {
-                                gVolume_Output_R_Value = theNewVolume;
-                                tvRequestedScalar = theNewVolume;
-                                ++tvRevision;
-                                *outNumberPropertiesChanged = 2;
-                                outChangedAddresses[0].mSelector = kAudioLevelControlPropertyScalarValue;
-                                outChangedAddresses[0].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[0].mElement = 2;
-                                outChangedAddresses[1].mSelector = kAudioLevelControlPropertyDecibelValue;
-                                outChangedAddresses[1].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[1].mElement = 2;
-                            }
+                        if (gVolume_Output_L_Value != theNewVolume || gVolume_Output_R_Value != theNewVolume) {
+                            gVolume_Output_L_Value = gVolume_Output_R_Value = theNewVolume;
+                            tvRequestedScalar = theNewVolume;
+                            ++tvRevision;
+                            *outNumberPropertiesChanged = 2;
+                            outChangedAddresses[0].mSelector = kAudioLevelControlPropertyScalarValue;
+                            outChangedAddresses[0].mScope = kAudioObjectPropertyScopeGlobal;
+                            outChangedAddresses[0].mElement = (inObjectID == kObjectID_Volume_Output_L) ? 1 : 2;
+                            outChangedAddresses[1].mSelector = kAudioLevelControlPropertyDecibelValue;
+                            outChangedAddresses[1].mScope = kAudioObjectPropertyScopeGlobal;
+                            outChangedAddresses[1].mElement = outChangedAddresses[0].mElement;
                         }
                     }
                     break;
@@ -4778,32 +4768,17 @@ OSStatus ProxyAudioDevice::SetControlPropertyData(AudioServerPlugInDriverRef inD
                     theNewVolume = sqrtf(theNewVolume);
                     {
                         CAMutex::Locker locker(stateMutex);
-                        if (inObjectID == kObjectID_Volume_Output_L) {
-                            if (gVolume_Output_L_Value != theNewVolume) {
-                                gVolume_Output_L_Value = theNewVolume;
-                                tvRequestedScalar = theNewVolume;
-                                ++tvRevision;
-                                *outNumberPropertiesChanged = 2;
-                                outChangedAddresses[0].mSelector = kAudioLevelControlPropertyScalarValue;
-                                outChangedAddresses[0].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[0].mElement = 1;
-                                outChangedAddresses[1].mSelector = kAudioLevelControlPropertyDecibelValue;
-                                outChangedAddresses[1].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[1].mElement = 1;
-                            }
-                        } else {
-                            if (gVolume_Output_R_Value != theNewVolume) {
-                                gVolume_Output_R_Value = theNewVolume;
-                                tvRequestedScalar = theNewVolume;
-                                ++tvRevision;
-                                *outNumberPropertiesChanged = 2;
-                                outChangedAddresses[0].mSelector = kAudioLevelControlPropertyScalarValue;
-                                outChangedAddresses[0].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[0].mElement = 2;
-                                outChangedAddresses[1].mSelector = kAudioLevelControlPropertyDecibelValue;
-                                outChangedAddresses[1].mScope = kAudioObjectPropertyScopeGlobal;
-                                outChangedAddresses[1].mElement = 2;
-                            }
+                        if (gVolume_Output_L_Value != theNewVolume || gVolume_Output_R_Value != theNewVolume) {
+                            gVolume_Output_L_Value = gVolume_Output_R_Value = theNewVolume;
+                            tvRequestedScalar = theNewVolume;
+                            ++tvRevision;
+                            *outNumberPropertiesChanged = 2;
+                            outChangedAddresses[0].mSelector = kAudioLevelControlPropertyScalarValue;
+                            outChangedAddresses[0].mScope = kAudioObjectPropertyScopeGlobal;
+                            outChangedAddresses[0].mElement = (inObjectID == kObjectID_Volume_Output_L) ? 1 : 2;
+                            outChangedAddresses[1].mSelector = kAudioLevelControlPropertyDecibelValue;
+                            outChangedAddresses[1].mScope = kAudioObjectPropertyScopeGlobal;
+                            outChangedAddresses[1].mElement = outChangedAddresses[0].mElement;
                         }
                     }
                     break;

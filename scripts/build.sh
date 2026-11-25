@@ -10,7 +10,7 @@ xcodebuild -project "$root/Driver/proxyAudioDevice.xcodeproj" -target ProxyAudio
   -configuration Release CONFIGURATION_BUILD_DIR="$build/driver" OBJROOT="$build/driver-obj" \
   SHARED_PRECOMPS_DIR="$build/precompiled" MODULE_CACHE_DIR="$build/module-cache" \
   CODE_SIGNING_ALLOWED=NO PRODUCT_BUNDLE_IDENTIFIER=local.xh.MiTVVolumeDriver \
-  PRODUCT_NAME=MiTVVolumeDriver MARKETING_VERSION=0.3.5 CURRENT_PROJECT_VERSION=9 \
+  PRODUCT_NAME=MiTVVolumeDriver MARKETING_VERSION=0.3.6 CURRENT_PROJECT_VERSION=10 \
   MACOSX_DEPLOYMENT_TARGET=13.0 ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO build
 swift build --disable-sandbox --package-path "$root" --scratch-path "$build/swift" \
   -c release --arch arm64 --arch x86_64
@@ -31,7 +31,7 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>小米电视音量</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.6.0</string>
-<key>CFBundleVersion</key><string>16</string>
+<key>CFBundleVersion</key><string>17</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>

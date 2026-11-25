@@ -25,8 +25,9 @@ enum DeviceIconStyle: Int, CaseIterable {
         switch self {
         case .homepod, .homepodMini, .usb, .thunderbolt, .firewire, .bluetooth, .airplay:
             return "资源图标已保存；控制中心使用扬声器图标"
+        case .headphones: return "已更新耳机外观；为避免系统按键误触音量，不再伪装成内置设备"
         case .appleTV: return "已切换为电视分类；控制中心采用系统电视图标"
-        case .builtInMac: return "已切换为本机 Mac 分类；图标由当前 Mac 机型决定"
+        case .builtInMac: return "已更新本机 Mac 外观；不再伪装成内置设备以免系统按键误触音量"
         default: return "已更新设备分类；重新展开声音面板可查看"
         }
     }
