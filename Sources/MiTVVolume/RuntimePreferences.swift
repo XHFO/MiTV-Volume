@@ -5,13 +5,29 @@ import VolumeCore
 @MainActor final class RuntimePreferences {
     private let defaults = UserDefaults.standard
     init() {
-        defaults.register(defaults: ["ShowMenuBarIcon": true, "StartInBackground": true, "VolumeQuietInterval": 0.5])
+        defaults.register(defaults: [
+            "ShowMenuBarIcon": true,
+            "StartInBackground": true,
+            "VolumeQuietInterval": 0.5,
+            "WindowRestoreOnReturn": true
+        ])
         migrateLegacySourceSelection()
+        migrateWindowMovePreferences()
     }
     private func migrateLegacySourceSelection() {
         if TVInputState.isLegacyADBIdentifier(defaults.string(forKey: "ComputerInputID")) {
             defaults.removeObject(forKey: "ComputerInputID")
             defaults.set(false, forKey: "SourceSwitchEnabled")
+        }
+    }
+    private func migrateWindowMovePreferences() {
+        // 0.8.0 used seize→builtin; 0.8.1+ uses away→chosen display.
+        if defaults.object(forKey: "WindowMoveOnAway") == nil, defaults.bool(forKey: "WindowMoveOnSeize") {
+            defaults.set(true, forKey: "WindowMoveOnAway")
+        }
+        if defaults.object(forKey: "WindowRestoreOnReturn") == nil,
+           defaults.object(forKey: "WindowRestoreOnLeave") != nil {
+            defaults.set(defaults.bool(forKey: "WindowRestoreOnLeave"), forKey: "WindowRestoreOnReturn")
         }
     }
     var showMenuBarIcon: Bool {
@@ -58,19 +74,26 @@ import VolumeCore
         get { defaults.string(forKey: "CustomDeviceName") ?? "" }
         set { defaults.set(newValue, forKey: "CustomDeviceName") }
     }
-
-    /// When this Mac seizes the TV computer input, move external-display windows to the built-in screen.
-    var windowMoveOnSeize: Bool {
-        get { defaults.bool(forKey: "WindowMoveOnSeize") }
-        set { defaults.set(newValue, forKey: "WindowMoveOnSeize") }
+    /// When the TV leaves the computer input, move windows onto the chosen display.
+    var windowMoveOnAway: Bool {
+        get { defaults.bool(forKey: "WindowMoveOnAway") }
+        set { defaults.set(newValue, forKey: "WindowMoveOnAway") }
     }
-    /// After a seize-move, restore saved frames when the TV leaves the computer input.
-    var windowRestoreOnLeave: Bool {
+    /// Target CGDirectDisplayID. nil selects the built-in display at runtime.
+    var windowMoveTargetDisplayID: UInt32? {
         get {
-            if defaults.object(forKey: "WindowRestoreOnLeave") == nil { return true }
-            return defaults.bool(forKey: "WindowRestoreOnLeave")
+            guard defaults.object(forKey: "WindowMoveTargetDisplayID") != nil else { return nil }
+            return UInt32(bitPattern: Int32(truncatingIfNeeded: defaults.integer(forKey: "WindowMoveTargetDisplayID")))
         }
-        set { defaults.set(newValue, forKey: "WindowRestoreOnLeave") }
+        set {
+            if let newValue { defaults.set(Int(newValue), forKey: "WindowMoveTargetDisplayID") }
+            else { defaults.removeObject(forKey: "WindowMoveTargetDisplayID") }
+        }
+    }
+    /// After an away-move, restore saved frames when the TV returns to the computer input.
+    var windowRestoreOnReturn: Bool {
+        get { defaults.bool(forKey: "WindowRestoreOnReturn") }
+        set { defaults.set(newValue, forKey: "WindowRestoreOnReturn") }
     }
     var volumeQuietInterval: TimeInterval {
         get { defaults.double(forKey: "VolumeQuietInterval") }

@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import VolumeCore
 
-/// Moves other apps' windows from external displays onto the built-in screen.
+/// Moves other apps' windows onto a user-chosen display when the TV leaves the computer input.
 /// Requires Accessibility permission. Full-screen games are skipped in v1.
 @MainActor final class WindowRelocator {
     struct Snapshot {
@@ -12,12 +12,17 @@ import VolumeCore
         let frame: CGRect
     }
 
+    struct DisplayChoice: Equatable {
+        let displayID: UInt32
+        let name: String
+        let isBuiltin: Bool
+        var label: String { isBuiltin ? "\(name)（内置）" : name }
+    }
+
     private var snapshots: [Snapshot] = []
     private(set) var lastMessage = ""
 
-    static var isTrusted: Bool {
-        AXIsProcessTrusted()
-    }
+    static var isTrusted: Bool { AXIsProcessTrusted() }
 
     @discardableResult
     static func requestTrust() -> Bool {
@@ -30,31 +35,54 @@ import VolumeCore
         NSWorkspace.shared.open(url)
     }
 
-    private var builtinScreen: NSScreen? {
-        NSScreen.screens.first { screen in
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
+    static func availableDisplays() -> [DisplayChoice] {
+        NSScreen.screens.compactMap { screen in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
+            let id = number.uint32Value
+            let name = screen.localizedName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return DisplayChoice(
+                displayID: id,
+                name: name.isEmpty ? "显示器 \(id)" : name,
+                isBuiltin: CGDisplayIsBuiltin(id) != 0
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.isBuiltin != rhs.isBuiltin { return lhs.isBuiltin && !rhs.isBuiltin }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    static func screen(displayID: UInt32?) -> NSScreen? {
+        let screens = NSScreen.screens
+        if let displayID,
+           let match = screens.first(where: {
+               ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == displayID
+           }) {
+            return match
+        }
+        return screens.first {
+            guard let number = $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
             return CGDisplayIsBuiltin(number.uint32Value) != 0
-        } ?? NSScreen.screens.first { $0 == NSScreen.main } ?? NSScreen.screens.first
+        } ?? NSScreen.main ?? screens.first
     }
 
-    private var externalScreens: [NSScreen] {
-        guard let builtin = builtinScreen else { return [] }
-        return NSScreen.screens.filter { $0 != builtin }
-    }
-
-    /// Move windows whose center is on an external display onto the built-in display.
-    func moveExternalWindowsToBuiltin() {
+    /// Move ordinary windows from every other screen onto the target display.
+    func moveAllWindows(toTargetDisplayID displayID: UInt32?) {
         guard Self.isTrusted else {
             lastMessage = "需要辅助功能权限才能移动其它应用窗口"
             return
         }
-        guard let builtin = builtinScreen else {
-            lastMessage = "未找到内置显示器"
+        guard let target = Self.screen(displayID: displayID) else {
+            lastMessage = "未找到目标显示器"
             return
         }
-        let externals = externalScreens
-        guard !externals.isEmpty else {
-            lastMessage = "当前没有外接显示器上的窗口可移动"
+        let targetID = (target.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+        let sources = NSScreen.screens.filter { screen in
+            let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+            return id != targetID
+        }
+        guard !sources.isEmpty else {
+            lastMessage = "只有目标显示器在线，无需移动窗口"
             return
         }
 
@@ -74,7 +102,11 @@ import VolumeCore
             for window in windows {
                 guard let frame = frame(of: window) else { continue }
                 if isMinimized(window) { continue }
-                guard let host = externals.first(where: { WindowPlacement.window(frame, isPrimarilyOn: $0.frame) }) else { continue }
+                if WindowPlacement.window(frame, isPrimarilyOn: target.frame) { continue }
+                guard let host = sources.first(where: { WindowPlacement.window(frame, isPrimarilyOn: $0.frame) })
+                        ?? NSScreen.screens.first(where: { WindowPlacement.window(frame, isPrimarilyOn: $0.frame) })
+                else { continue }
+                if host == target { continue }
                 if WindowPlacement.looksFullScreen(window: frame, screen: host.frame) { continue }
                 if isFullScreenAttribute(window) { continue }
 
@@ -82,16 +114,16 @@ import VolumeCore
                 let role = stringValue(window, kAXRoleAttribute as CFString) ?? ""
                 saved.append(Snapshot(pid: app.processIdentifier, title: title, role: role, frame: frame))
 
-                let target = WindowPlacement.relocatedFrame(window: frame, from: host.frame, to: builtin.frame)
-                if setFrame(window, target) { moved += 1 }
+                let destination = WindowPlacement.relocatedFrame(window: frame, from: host.frame, to: target.frame)
+                if setFrame(window, destination) { moved += 1 }
             }
         }
 
         if moved > 0 { snapshots = saved }
-        lastMessage = moved > 0 ? "已将 \(moved) 个窗口移到内置屏" : "外接屏上没有可移动的普通窗口"
+        let targetName = target.localizedName.isEmpty ? "目标显示器" : target.localizedName
+        lastMessage = moved > 0 ? "已将 \(moved) 个窗口移到\(targetName)" : "没有可移动的普通窗口"
     }
 
-    /// Restore windows moved by the last seize action when possible.
     func restoreMovedWindows() {
         guard Self.isTrusted else {
             lastMessage = "需要辅助功能权限才能恢复窗口位置"
@@ -166,7 +198,6 @@ import VolumeCore
 
     private func isFullScreenAttribute(_ window: AXUIElement) -> Bool {
         var object: AnyObject?
-        // Undocumented but widely used; ignore if missing.
         let fullScreen = "AXFullScreen" as CFString
         guard AXUIElementCopyAttributeValue(window, fullScreen, &object) == .success,
               let value = object as? Bool else { return false }

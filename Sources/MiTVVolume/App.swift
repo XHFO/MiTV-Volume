@@ -135,14 +135,24 @@ import VolumeCore
         source.addItem(.separator())
         let canWindow = paired && preferences.computerInputID != nil
         let windowTitle = WindowRelocator.isTrusted
-            ? "主机抢占电视输入时移到内置屏"
-            : "主机抢占电视输入时移到内置屏（需辅助功能）"
+            ? "电视切离电脑输入时移动窗口"
+            : "电视切离电脑输入时移动窗口（需辅助功能）"
         add(windowTitle, to: source, action: #selector(toggleWindowMove),
-            checked: preferences.windowMoveOnSeize, enabled: canWindow)
-        add("切离电脑输入后恢复窗口位置", to: source, action: #selector(toggleWindowRestore),
-            checked: preferences.windowRestoreOnLeave,
-            enabled: canWindow && preferences.windowMoveOnSeize)
-        if preferences.windowMoveOnSeize && !WindowRelocator.isTrusted {
+            checked: preferences.windowMoveOnAway, enabled: canWindow)
+        let displays = submenu("窗口移到的显示器", in: source)
+        let displayChoices = WindowRelocator.availableDisplays()
+        let selectedID = preferences.windowMoveTargetDisplayID
+        let effectiveID = selectedID ?? displayChoices.first(where: { $0.isBuiltin })?.displayID ?? displayChoices.first?.displayID
+        for display in displayChoices {
+            add(display.label, to: displays, action: #selector(selectWindowDisplay(_:)),
+                checked: display.displayID == effectiveID, value: Int(display.displayID),
+                enabled: canWindow && preferences.windowMoveOnAway)
+        }
+        if displayChoices.isEmpty { add("未检测到显示器", to: displays) }
+        add("切回电脑输入后恢复窗口位置", to: source, action: #selector(toggleWindowRestore),
+            checked: preferences.windowRestoreOnReturn,
+            enabled: canWindow && preferences.windowMoveOnAway)
+        if preferences.windowMoveOnAway && !WindowRelocator.isTrusted {
             add("在系统设置中允许辅助功能…", to: source, action: #selector(openAccessibilitySettings))
         }
         if !windowMoveMessage.isEmpty { add(windowMoveMessage, to: source) }
@@ -215,40 +225,45 @@ import VolumeCore
     }
 
     @objc private func toggleWindowMove() {
-        if !preferences.windowMoveOnSeize && !WindowRelocator.isTrusted {
+        if !preferences.windowMoveOnAway && !WindowRelocator.isTrusted {
             _ = WindowRelocator.requestTrust()
         }
-        preferences.windowMoveOnSeize.toggle()
-        if !preferences.windowMoveOnSeize {
+        preferences.windowMoveOnAway.toggle()
+        if !preferences.windowMoveOnAway {
             lastComputerInputActive = nil
             windowRelocator.clearSnapshots()
             windowMoveMessage = ""
         } else if !WindowRelocator.isTrusted {
             windowMoveMessage = "请在系统设置 → 隐私与安全性 → 辅助功能中允许“小米电视音量”"
         } else {
-            windowMoveMessage = "已开启：电视切到电脑输入并稳定后，外接屏普通窗口会移到内置屏"
+            windowMoveMessage = "已开启：电视切离电脑输入并稳定后，窗口会移到指定显示器"
             applyWindowPolicy(for: sourceState, force: true)
         }
         menuMessage = windowMoveMessage
     }
-    @objc private func toggleWindowRestore() { preferences.windowRestoreOnLeave.toggle() }
+    @objc private func toggleWindowRestore() { preferences.windowRestoreOnReturn.toggle() }
+    @objc private func selectWindowDisplay(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Int else { return }
+        preferences.windowMoveTargetDisplayID = UInt32(value)
+        menuMessage = "窗口目标显示器已更新"
+    }
     @objc private func openAccessibilitySettings() { WindowRelocator.openAccessibilitySettings() }
 
     private func applyWindowPolicy(for state: TVInputState?, force: Bool = false) {
-        guard preferences.windowMoveOnSeize,
+        guard preferences.windowMoveOnAway,
               let computer = preferences.computerInputID,
               let state else { return }
-        let active = state.identifier == computer
-        if !force, lastComputerInputActive == active { return }
-        lastComputerInputActive = active
-        if active {
+        let onComputer = state.identifier == computer
+        if !force, lastComputerInputActive == onComputer { return }
+        lastComputerInputActive = onComputer
+        if !onComputer {
             guard WindowRelocator.isTrusted else {
-                windowMoveMessage = "主机已在电脑输入，但缺少辅助功能权限"
+                windowMoveMessage = "电视已离开电脑输入，但缺少辅助功能权限"
                 return
             }
-            windowRelocator.moveExternalWindowsToBuiltin()
+            windowRelocator.moveAllWindows(toTargetDisplayID: preferences.windowMoveTargetDisplayID)
             windowMoveMessage = windowRelocator.lastMessage
-        } else if preferences.windowRestoreOnLeave {
+        } else if preferences.windowRestoreOnReturn {
             guard WindowRelocator.isTrusted else { return }
             windowRelocator.restoreMovedWindows()
             windowMoveMessage = windowRelocator.lastMessage

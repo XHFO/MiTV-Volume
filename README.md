@@ -4,7 +4,7 @@
 
 [下载安装包](https://github.com/XHFO/MiTV-Volume/releases) · [验证范围](docs/VALIDATION.md) · [第三方声明](THIRD_PARTY_NOTICES.md)
 
-**当前版本：0.8.0 build 19（预发布）。** 支持 macOS 13 及以上，提供 Apple Silicon / Intel 通用应用。应用采用临时签名，尚未经过 Developer ID 签名和 Apple 公证。
+**当前版本：0.8.1 build 20（预发布）。** 支持 macOS 13 及以上，提供 Apple Silicon / Intel 通用应用。应用采用临时签名，尚未经过 Developer ID 签名和 Apple 公证。
 
 ## 界面预览（旧版）
 
@@ -42,7 +42,7 @@
 
 约每秒读取一次，连续两次一致后进行切换。读取失败、切换过渡或状态过期时暂停电视音量控制并保留当前音频输出。返回电脑输入时先读取电视音量，再恢复代理；用户在离开期间手动选择其他 Mac 音频设备会取消此次自动恢复。
 
-可选开启「主机抢占电视输入时移到内置屏」：当稳定确认电视已切到所设电脑输入后，把位于外接显示器上的普通窗口移到内置屏。可同时开启切离后恢复位置。需要系统「辅助功能」权限；全屏游戏窗口不在 v1 保证范围内。
+可选开启「电视切离电脑输入时移动窗口」：当稳定确认电视已不在所设电脑输入后，把其它屏幕上的普通窗口全部移到**用户指定的显示器**（默认内置屏）。可同时开启切回电脑输入后恢复位置。需要系统「辅助功能」权限；全屏游戏窗口不在 v1 保证范围内。
 
 当前信源编号面向 Redmi / 小米 `source_list_monitor_usbc` 一类配置（例如 USB-C 为 `30`）。不同机型标签可能不同。从 0.6.x 升级后，旧的 ADB 输入 ID 会自动清除，需重新选择电脑输入。**Type-C → 游戏输入 → Type-C 的完整真实往返验收尚未完成**，详见[验证记录](docs/VALIDATION.md)。
 
@@ -70,7 +70,7 @@ swift test --disable-sandbox
 ./scripts/build.sh
 ```
 
-默认生成 `dist/MiTV-Volume-0.8.0.zip`。可通过 `BUILD_DIR`、`DIST_DIR` 指定构建缓存与输出目录。构建不会安装系统音频组件。
+默认生成 `dist/MiTV-Volume-0.8.1.zip`。可通过 `BUILD_DIR`、`DIST_DIR` 指定构建缓存与输出目录。构建不会安装系统音频组件。
 
 目录：
 

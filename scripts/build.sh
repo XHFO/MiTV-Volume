@@ -30,8 +30,8 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>小米电视音量</string>
 <key>CFBundleDisplayName</key><string>小米电视音量</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.8.0</string>
-<key>CFBundleVersion</key><string>19</string>
+<key>CFBundleShortVersionString</key><string>0.8.1</string>
+<key>CFBundleVersion</key><string>20</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
@@ -66,5 +66,5 @@ if [ -n "${QA_APP_DIR:-}" ]; then
   ditto --norsrc --noextattr "$app" "$QA_APP_DIR/MiTV Volume.app"
 fi
 # The only downloadable item is one self-contained application. No separate installer.
-ditto -c -k --norsrc --noextattr --keepParent "$app" "$dist/MiTV-Volume-0.8.0.zip"
-printf 'Built: %s\n' "$dist/MiTV-Volume-0.8.0.zip"
+ditto -c -k --norsrc --noextattr --keepParent "$app" "$dist/MiTV-Volume-0.8.1.zip"
+printf 'Built: %s\n' "$dist/MiTV-Volume-0.8.1.zip"
