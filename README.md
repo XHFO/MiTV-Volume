@@ -4,7 +4,7 @@
 
 [下载安装包](https://github.com/XHFO/MiTV-Volume/releases) · [验证范围](docs/VALIDATION.md) · [第三方声明](THIRD_PARTY_NOTICES.md)
 
-**当前版本：0.6.0 build 17（预发布）。** 支持 macOS 13 及以上，提供 Apple Silicon / Intel 通用应用。应用采用临时签名，尚未经过 Developer ID 签名和 Apple 公证。
+**当前版本：0.7.0 build 18（预发布）。** 支持 macOS 13 及以上，提供 Apple Silicon / Intel 通用应用。应用采用临时签名，尚未经过 Developer ID 签名和 Apple 公证。
 
 ## 界面预览（旧版）
 
@@ -36,13 +36,13 @@
 
 ### 电视信号源自动切换
 
-在菜单「电视信号源切换 → 电脑使用的电视输入」中选择 Mac 所连接的输入，再开启「切走时自动切换音频」，并选择备用音频设备。
+在菜单「电视信号源切换」中先**配对电视端 [XH 光流](https://github.com/XHFO/XHFlow)**：打开电视上的 XH 光流、开启配置后台，将二维码链接或 32 位配对码粘贴到 Mac 应用。然后选择「电脑使用的电视输入」，再开启「切走时自动切换音频」，并选择备用音频设备。
 
-这项功能读取电视自身的当前主输入会话，不依赖拔线。它使用应用内置的 ADB，**电视需要已开启网络调试并允许此 Mac 连接**，无需另外安装电视应用。电视未授权或固件不支持读取时，应用显示失败状态，不会猜测信号源。
+这项功能读取 XH 光流 `GET /api/status` 中的 `inputSource` / `inputsSupported`，不依赖拔线，**不再使用 ADB 或电视网络调试**。电视上需要安装并运行 XH 光流，且配置后台保持可用；配对失败、服务未开或固件未提供接口列表时，应用显示失败状态，不会猜测信号源。
 
 约每秒读取一次，连续两次一致后进行切换。读取失败、切换过渡或状态过期时暂停电视音量控制并保留当前音频输出。返回电脑输入时先读取电视音量，再恢复代理；用户在离开期间手动选择其他 Mac 音频设备会取消此次自动恢复。
 
-当前读取方案在一台 Redmi 设备上验证过；其 Type-C 对应 DP 2。不同固件的输入标签和接口可能不同。**Type-C → 游戏输入 → Type-C 的完整真实往返验收尚未完成**，详见[验证记录](docs/VALIDATION.md)。
+当前信源编号面向 Redmi / 小米 `source_list_monitor_usbc` 一类配置（例如 USB-C 为 `30`）。不同机型标签可能不同。从 0.6.x 升级后，旧的 ADB 输入 ID 会自动清除，需重新选择电脑输入。**Type-C → 游戏输入 → Type-C 的完整真实往返验收尚未完成**，详见[验证记录](docs/VALIDATION.md)。
 
 ## 同步行为与限制
 
@@ -59,7 +59,7 @@
 
 ## 构建与测试
 
-需要安装 Xcode 的 macOS 开发环境。仓库保留了可直接打包的 ADB 通用二进制及第三方声明。
+需要安装 Xcode 的 macOS 开发环境。信号源依赖电视端 XH 光流，本仓库不再打包 ADB。
 
 ```sh
 swift test --disable-sandbox
@@ -68,23 +68,22 @@ swift test --disable-sandbox
 ./scripts/build.sh
 ```
 
-默认生成 `dist/MiTV-Volume-0.6.0.zip`。可通过 `BUILD_DIR`、`DIST_DIR` 指定构建缓存与输出目录。构建不会安装系统音频组件。
+默认生成 `dist/MiTV-Volume-0.7.0.zip`。可通过 `BUILD_DIR`、`DIST_DIR` 指定构建缓存与输出目录。构建不会安装系统音频组件。
 
 目录：
 
-- `Sources/VolumeCore`：协议、音量同步、输入会话解析与输出恢复逻辑。
-- `Sources/MiTVVolume`：macOS 菜单栏设置、音频桥接、内置启用流程与电视状态读取。
+- `Sources/VolumeCore`：协议、音量同步、XH 光流信号源解析与输出恢复逻辑。
+- `Sources/MiTVVolume`：macOS 菜单栏设置、音频桥接、内置启用流程与 XH 光流配对。
 - `Driver`：修改后的 Proxy Audio Device；原设置应用仅保留为上游源码，不参与交付。
 - `Tests`：Swift 自动测试与实际 C++ 驱动入口测试。
-- `Resources/ADB`：内置 ADB 及许可声明。授权私钥由运行时管理，不包含在源码或发布包中。
 
 ## 来源
 
 - 音频组件基于 [briankendall/proxy-audio-device](https://github.com/briankendall/proxy-audio-device)，基线 `d3d8c8c`，保留 [Unlicense](Driver/LICENSE) 及文件原有声明。
 - 电视音量协议参考 [pengchujin/MiTV-Remote](https://github.com/pengchujin/MiTV-Remote)，参照 `bacb9f0`；本项目独立实现客户端，未打包该项目的遥控应用。
-- ADB 来自 Android SDK Platform-Tools，保留 [第三方许可声明](Resources/ADB/NOTICE.txt)。
+- 电视信号源状态来自 [XHFO/XHFlow](https://github.com/XHFO/XHFlow)（电视端），通过其局域网配置接口只读查询；本应用不打包 XH 光流。
 
-### 图标与外观（0.6.0）
+### 图标与外观（0.6.0 起）
 
 应用图标采用紫色声波构图，由 Apple Icon Composer 的第 27 代 Liquid Glass 渲染，
 通过 Xcode actool 生成原生资源和旧版 ICNS 回退。源文档位于 `Resources/AppIcon.icon`。

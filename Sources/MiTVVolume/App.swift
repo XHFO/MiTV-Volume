@@ -25,7 +25,7 @@ import VolumeCore
     private var sourceObservedAt = Date.distantPast
     private var sourceState: TVInputState?
     private var sourceInputs: [TVInputState] = []
-    private var sourceMessage = "正在读取电视信号源…"
+    private var sourceMessage = "信号源由电视端 XH 光流提供…"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -103,15 +103,23 @@ import VolumeCore
         }
         let source = submenu("电视信号源切换", in: menu)
         add(sourceMessage, to: source)
+        let paired = preferences.xhflowToken != nil
+        add(paired ? "重新配对 XH 光流…" : "配对电视端 XH 光流…", to: source, action: #selector(pairXHFlow))
+        if paired { add("清除 XH 光流配对", to: source, action: #selector(clearXHFlowPairing)) }
         add("切走时自动切换音频", to: source, action: #selector(toggleSourceSwitch),
-            checked: preferences.sourceSwitchEnabled, enabled: preferences.computerInputID != nil)
+            checked: preferences.sourceSwitchEnabled, enabled: paired && preferences.computerInputID != nil)
         let inputs = submenu("电脑使用的电视输入", in: source)
         var sourceChoices = sourceInputs
-        if let id = preferences.computerInputID, !sourceChoices.contains(where: { $0.identifier == id }) { sourceChoices.append(.external(id)) }
-        for input in sourceChoices {
-            add(input.label, to: inputs, action: #selector(selectSource(_:)), checked: input.identifier == preferences.computerInputID, value: input.identifier)
+        if let id = preferences.computerInputID, !sourceChoices.contains(where: { $0.identifier == id }) {
+            sourceChoices.append(.external(id))
         }
-        if sourceChoices.isEmpty { add("等待电视返回输入列表…", to: inputs) }
+        for input in sourceChoices {
+            add(input.label, to: inputs, action: #selector(selectSource(_:)),
+                checked: input.identifier == preferences.computerInputID, value: input.identifier, enabled: paired)
+        }
+        if sourceChoices.isEmpty {
+            add(paired ? "等待 XH 光流返回输入列表…" : "请先配对电视端 XH 光流", to: inputs)
+        }
         let fallback = submenu("切走后的音频设备", in: source)
         add("Mac 内置扬声器（默认）", to: fallback, action: #selector(selectFallback(_:)), checked: preferences.fallbackOutputUID == nil)
         for output in outputs where output.uid != selectedOutputUID {
@@ -157,6 +165,37 @@ import VolumeCore
     }
     @objc private func selectSource(_ sender: NSMenuItem) { preferences.computerInputID = sender.representedObject as? String }
     @objc private func toggleSourceSwitch() { preferences.sourceSwitchEnabled.toggle() }
+    @objc private func pairXHFlow() {
+        let alert = NSAlert()
+        alert.messageText = "配对电视端 XH 光流"
+        alert.informativeText = "在电视打开 XH 光流，开启配置后台，将二维码链接或 32 位配对码粘贴到下方。信号源读取不再使用 ADB / 网络调试。"
+        let field = NSTextField(string: preferences.xhflowToken ?? "")
+        field.frame = NSRect(x: 0, y: 0, width: 360, height: 26)
+        field.placeholderString = "http://电视IP:8768/?token=… 或配对码"
+        field.setAccessibilityLabel("XH 光流配对")
+        alert.accessoryView = field
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            preferences.xhflowToken = try XHFlowClient.validatedToken(field.stringValue)
+            menuMessage = "已保存 XH 光流配对"
+            startSourceMonitor()
+        } catch {
+            menuMessage = error.localizedDescription
+        }
+    }
+    @objc private func clearXHFlowPairing() {
+        preferences.xhflowToken = nil
+        preferences.sourceSwitchEnabled = false
+        sourceState = nil
+        sourceInputs = []
+        sourceMessage = "已清除配对，请重新配对电视端 XH 光流"
+        menuMessage = sourceMessage
+        startSourceMonitor()
+    }
     @objc private func selectFallback(_ sender: NSMenuItem) { preferences.fallbackOutputUID = sender.representedObject as? String }
     @objc private func selectIcon(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? Int, let style = DeviceIconStyle(rawValue: raw) else { return }
@@ -266,12 +305,16 @@ import VolumeCore
             var nextDiscovery = Date.distantPast
             let defaults = UserDefaults.standard
             while !Task.isCancelled {
-                if !self.preferences.sourceSwitchEnabled && !self.menuOpen {
+                let wantsStatus = self.preferences.sourceSwitchEnabled || self.menuOpen || self.preferences.xhflowToken != nil
+                if !wantsStatus {
                     stable.observe(nil); self.sourceState = nil
                     do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { break }
                     continue
                 }
                 do {
+                    guard let token = self.preferences.xhflowToken else {
+                        throw VolumeError("请先配对电视端 XH 光流（菜单 → 电视信号源切换）")
+                    }
                     guard var host = defaults.string(forKey: "TVHost") else { break }
                     if verifiedHost != host || Date().timeIntervalSince(verificationTime) > 15 {
                         let identity = defaults.string(forKey: "TVIdentity")
@@ -290,11 +333,11 @@ import VolumeCore
                             } else { throw VolumeError("正在重新查找电视") }
                         }
                     }
-                    let reading = try await self.sourceReader.read(host: host)
+                    let reading = try await self.sourceReader.read(host: host, token: token)
                     guard !Task.isCancelled else { break }
                     stable.observe(reading.current); self.sourceState = stable.value; self.sourceObservedAt = Date()
                     self.sourceInputs = reading.inputs
-                    self.sourceMessage = stable.value.map { "电视当前：\($0.label)" } ?? "电视正在切换信号源…"
+                    self.sourceMessage = stable.value.map { "电视当前：\($0.label) · 经 XH 光流" } ?? "电视正在切换信号源…"
                 } catch {
                     guard !Task.isCancelled else { break }
                     stable.observe(nil); self.sourceState = nil
@@ -418,11 +461,6 @@ import VolumeCore
     @objc private func quit() { NSApp.terminate(nil) }
     func applicationWillTerminate(_ notification: Notification) {
         worker?.cancel(); discovery?.cancel(); sourceWorker?.cancel()
-        if let executable = Bundle.main.url(forResource: "adb", withExtension: nil) {
-            let stop = Process(); stop.executableURL = executable; stop.arguments = ["-P", "5047", "kill-server"]
-            stop.standardOutput = FileHandle.nullDevice; stop.standardError = FileHandle.nullDevice
-            try? stop.run()
-        }
         if let proxy = try? ProxyDevice.lookup(ProxyDevice.uid), (try? ProxyDevice.defaultOutput()) == proxy,
            let uid = UserDefaults.standard.string(forKey: "OutputUID") { try? ProxyDevice.makeDefault(uid) }
         if lockFD >= 0 { close(lockFD) }

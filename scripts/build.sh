@@ -30,12 +30,12 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>小米电视音量</string>
 <key>CFBundleDisplayName</key><string>小米电视音量</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.6.0</string>
-<key>CFBundleVersion</key><string>17</string>
+<key>CFBundleShortVersionString</key><string>0.7.0</string>
+<key>CFBundleVersion</key><string>18</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
-<key>NSLocalNetworkUsageDescription</key><string>读取并同步你指定的小米电视音量。</string>
+<key>NSLocalNetworkUsageDescription</key><string>读取并同步你指定的小米电视音量，并通过电视端 XH 光流读取当前信号源。</string>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>
 PLIST
@@ -51,17 +51,20 @@ fi
 ditto --norsrc --noextattr "$build/driver/MiTVVolumeDriver.driver" "$app/Contents/Resources/MiTVVolumeDriver.driver"
 cp "$root/Resources/enable-audio.sh" "$app/Contents/Resources/enable-audio.sh"
 chmod 644 "$app/Contents/Resources/enable-audio.sh"
-cp "$root/Resources/ADB/adb" "$app/Contents/Resources/adb"
-cp "$root/Resources/ADB/NOTICE.txt" "$app/Contents/Resources/ADB-NOTICE.txt"
-chmod 755 "$app/Contents/Resources/adb"
 # Remove build-machine paths from debug symbols before signing public artifacts.
 xcrun strip -S "$app/Contents/MacOS/MiTVVolume"
 xcrun strip -S "$app/Contents/Resources/MiTVVolumeDriver.driver/Contents/MacOS/MiTVVolumeDriver"
-codesign --force --sign - "$app/Contents/Resources/adb"
 codesign --force --sign - "$app/Contents/Resources/MiTVVolumeDriver.driver"
 codesign --force --sign - "$app"
 codesign --verify --deep --strict "$app"
-if [ -n "${QA_APP_DIR:-}" ]; then ditto --norsrc --noextattr "$app" "$QA_APP_DIR/MiTV Volume.app"; fi
+if [ -n "${QA_APP_DIR:-}" ]; then
+  if [ -e "$QA_APP_DIR/MiTV Volume.app" ]; then
+    bak="$QA_APP_DIR/MiTV Volume.app.replaced-$$"
+    mv "$QA_APP_DIR/MiTV Volume.app" "$bak"
+    mv "$bak" "${TMPDIR:-/tmp}/MiTV-Volume-replaced-$$" 2>/dev/null || true
+  fi
+  ditto --norsrc --noextattr "$app" "$QA_APP_DIR/MiTV Volume.app"
+fi
 # The only downloadable item is one self-contained application. No separate installer.
-ditto -c -k --norsrc --noextattr --keepParent "$app" "$dist/MiTV-Volume-0.6.0.zip"
-printf 'Built: %s\n' "$dist/MiTV-Volume-0.6.0.zip"
+ditto -c -k --norsrc --noextattr --keepParent "$app" "$dist/MiTV-Volume-0.7.0.zip"
+printf 'Built: %s\n' "$dist/MiTV-Volume-0.7.0.zip"

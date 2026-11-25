@@ -1,10 +1,18 @@
 import AppKit
 import ServiceManagement
+import VolumeCore
 
 @MainActor final class RuntimePreferences {
     private let defaults = UserDefaults.standard
     init() {
         defaults.register(defaults: ["ShowMenuBarIcon": true, "StartInBackground": true, "VolumeQuietInterval": 0.5])
+        migrateLegacySourceSelection()
+    }
+    private func migrateLegacySourceSelection() {
+        if TVInputState.isLegacyADBIdentifier(defaults.string(forKey: "ComputerInputID")) {
+            defaults.removeObject(forKey: "ComputerInputID")
+            defaults.set(false, forKey: "SourceSwitchEnabled")
+        }
     }
     var showMenuBarIcon: Bool {
         get { defaults.bool(forKey: "ShowMenuBarIcon") }
@@ -19,12 +27,28 @@ import ServiceManagement
         set { defaults.set(newValue, forKey: "SourceSwitchEnabled") }
     }
     var computerInputID: String? {
-        get { defaults.string(forKey: "ComputerInputID") }
+        get {
+            let value = defaults.string(forKey: "ComputerInputID")
+            return TVInputState.isLegacyADBIdentifier(value) ? nil : value
+        }
         set { defaults.set(newValue, forKey: "ComputerInputID") }
     }
     var fallbackOutputUID: String? {
         get { defaults.string(forKey: "FallbackOutputUID") }
         set { defaults.set(newValue, forKey: "FallbackOutputUID") }
+    }
+    /// Pairing token for the television XHFlow configuration server. Never log this value.
+    var xhflowToken: String? {
+        get {
+            let value = defaults.string(forKey: "XHFlowToken")?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        set {
+            let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmed, !trimmed.isEmpty { defaults.set(trimmed, forKey: "XHFlowToken") }
+            else { defaults.removeObject(forKey: "XHFlowToken") }
+        }
     }
     var deviceIconStyle: DeviceIconStyle {
         get { DeviceIconStyle(rawValue: defaults.integer(forKey: "DeviceIconStyle")) ?? .display }

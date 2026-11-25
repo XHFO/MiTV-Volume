@@ -1,61 +1,100 @@
 import Foundation
 
-public enum TVInputState: Equatable {
-    case external(String)
-    case builtIn
-    public var identifier: String {
-        switch self { case .external(let id): return id; case .builtIn: return "__builtin__" }
+public struct TVInputState: Equatable, Sendable {
+    public let id: String
+    public let label: String
+
+    public init(id: String, label: String) {
+        self.id = id
+        self.label = label
     }
-    public var label: String {
-        switch self {
-        case .builtIn: return "电视桌面 / 内置应用"
-        case .external(let id):
-            if id == "com.mediatek.tvinput/.dp.DpInputService/HW10" { return "Type-C / DP 2" }
-            if id == "com.mediatek.tvinput/.dp.DpInputService/HW9" { return "DP" }
-            if id == "com.mediatek.tvinput/.hdmi.HDMIInputService/HW5" { return "HDMI 1" }
-            if id == "com.mediatek.tvinput/.hdmi.HDMIInputService/HW6" { return "HDMI 2" }
-            let suffix = id.components(separatedBy: "/").last ?? id
-            if id.lowercased().contains(".dp.") { return "DP / Type-C（\(suffix)）" }
-            if id.lowercased().contains(".hdmi.") { return "HDMI（\(suffix)）" }
-            return suffix
+
+    public var identifier: String { id }
+
+    public static let builtIn = TVInputState(id: "__builtin__", label: "电视桌面 / 内置应用")
+
+    public static func external(_ id: String, label: String? = nil) -> TVInputState {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "34" || trimmed == "__builtin__" {
+            return .builtIn
+        }
+        let cleaned = label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TVInputState(id: trimmed, label: (cleaned?.isEmpty == false ? cleaned! : nil)
+            ?? Self.fallbackLabel(for: trimmed))
+    }
+
+    public static func == (lhs: TVInputState, rhs: TVInputState) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    /// Legacy ADB hardware IDs cannot be compared with XHFlow source numbers.
+    public static func isLegacyADBIdentifier(_ id: String?) -> Bool {
+        guard let id, !id.isEmpty else { return false }
+        return id.contains("/") || id.hasPrefix("com.") || id.lowercased().contains("mediatek") || id.lowercased().contains("tvinput")
+    }
+
+    public static func fallbackLabel(for id: String) -> String {
+        switch id {
+        case "23": return "HDMI 1"
+        case "24": return "HDMI 2"
+        case "29": return "DP"
+        case "30": return "USB-C / Type-C"
+        case "34", "__builtin__": return builtIn.label
+        default: return "输入 \(id)"
         }
     }
-    public static func availableInputs(_ dump: String) -> [TVInputState] {
-        guard let start = dump.range(of: "inputMap: inputId -> TvInputState"),
-              let end = dump.range(of: "  packageSet:", range: start.upperBound..<dump.endIndex) else { return [] }
-        let section = String(dump[start.upperBound..<end.lowerBound])
-        let pattern = #"(?m)^    ([^\s:]+/HW[0-9]+):"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
-        return regex.matches(in: section, range: NSRange(section.startIndex..., in: section)).compactMap {
-            guard let range = Range($0.range(at: 1), in: section) else { return nil }
-            let id = String(section[range])
-            guard id.contains(".dp.") || id.contains(".hdmi.") else { return nil }
-            return .external(id)
-        }.sorted { $0.label < $1.label }
+
+    /// Parse XHFlow `GET /api/status` JSON body.
+    public static func parseStatus(_ root: [String: Any]) throws -> (current: TVInputState, inputs: [TVInputState]) {
+        let inputs = availableInputs(root)
+        guard let source = root["inputSource"] as? [String: Any] else {
+            throw VolumeError("XH 光流尚未提供信号源，请在电视打开 XH 光流并保持配置后台开启")
+        }
+        let rawID: String?
+        if source["id"] is NSNull { rawID = nil }
+        else if let value = source["id"] as? String { rawID = value }
+        else if let value = source["id"] as? Int { rawID = String(value) }
+        else if let value = source["id"] as? NSNumber { rawID = value.stringValue }
+        else { rawID = nil }
+        guard let rawID, !rawID.isEmpty else {
+            let detail = (root["displayError"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let detail, !detail.isEmpty {
+                throw VolumeError(detail)
+            }
+            throw VolumeError("电视当前信号源未知")
+        }
+        let known = source["known"] as? Bool ?? false
+        let reported = (source["label"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matched = inputs.first { $0.id == rawID }
+        let label: String
+        if let matched { label = matched.label }
+        else if known, let reported, !reported.isEmpty, reported != "未知" { label = reported }
+        else { label = fallbackLabel(for: rawID) }
+        let current = external(rawID, label: label)
+        return (current, inputs)
     }
-    /// Use the television's active session, never a remembered last-input setting or CEC history.
-    public static func parse(_ dump: String) throws -> TVInputState {
-        guard dump.contains("UserState ("),
-              let tokenRange = dump.range(of: #"(?m)^\s*mainSessionToken: ([^\r\n]+)"#, options: .regularExpression) else {
-            throw VolumeError("无法读取电视当前信号源，请检查电视的网络调试授权")
+
+    public static func availableInputs(_ root: [String: Any]) -> [TVInputState] {
+        guard let rows = root["inputsSupported"] as? [[String: Any]] else { return [] }
+        var seen = Set<String>()
+        var values: [TVInputState] = []
+        for row in rows {
+            let raw: String?
+            if let value = row["id"] as? String { raw = value }
+            else if let value = row["id"] as? Int { raw = String(value) }
+            else if let value = row["id"] as? NSNumber { raw = value.stringValue }
+            else { raw = nil }
+            guard let raw, !raw.isEmpty, raw != "34" else { continue }
+            guard seen.insert(raw).inserted else { continue }
+            let label = (row["label"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            values.append(.external(raw, label: label))
         }
-        let token = dump[tokenRange].components(separatedBy: ": ").last!.trimmingCharacters(in: .whitespacesAndNewlines)
-        if token == "null" { return .builtIn }
-        guard let sessionStart = dump.range(of: "  sessionStateMap:"),
-              let callbacks = dump.range(of: "  mCallbacks:", range: sessionStart.upperBound..<dump.endIndex) else {
-            throw VolumeError("电视未提供有效的信号源会话")
-        }
-        let sessions = String(dump[sessionStart.upperBound..<callbacks.lowerBound])
-        let pattern = #"(?m)^    "# + NSRegularExpression.escapedPattern(for: token) + #": [^\n]*\n      inputId: ([^\r\n]+)"#
-        let expression = try NSRegularExpression(pattern: pattern)
-        guard let match = expression.firstMatch(in: sessions, range: NSRange(sessions.startIndex..., in: sessions)),
-              let range = Range(match.range(at: 1), in: sessions) else {
-            throw VolumeError("电视正在切换信号源，等待稳定")
-        }
-        let id = String(sessions[range]).trimmingCharacters(in: .whitespaces)
-        guard !id.isEmpty, id != "null" else { throw VolumeError("电视当前信号源未知") }
-        return .external(id)
+        return values.sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 public struct StableTVInput {
